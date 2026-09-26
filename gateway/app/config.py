@@ -1,0 +1,43 @@
+import os
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Settings:
+    jwt_secret: str
+    jwt_issuer: str = "mast-gateway"
+    access_token_ttl_seconds: int = 900
+    refresh_token_ttl_seconds: int = 2_592_000
+    github_api_base_url: str = "https://api.github.com"
+    llm_provider: str = "anthropic"
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-sonnet-4-5"
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o"
+
+    @classmethod
+    def from_env(cls) -> "Settings":
+        secret = os.getenv("MAST_JWT_SECRET", "")
+        if len(secret.encode("utf-8")) < 32:
+            raise RuntimeError("MAST_JWT_SECRET must contain at least 32 bytes")
+
+        access_ttl = int(os.getenv("MAST_ACCESS_TOKEN_TTL_SECONDS", "900"))
+        refresh_ttl = int(os.getenv("MAST_REFRESH_TOKEN_TTL_SECONDS", "2592000"))
+        if access_ttl <= 0 or refresh_ttl <= 0:
+            raise RuntimeError("JWT token lifetimes must be positive integers")
+        llm_provider = os.getenv("MAST_LLM_PROVIDER", "anthropic").strip().lower()
+        if llm_provider not in {"anthropic", "openai"}:
+            raise RuntimeError("MAST_LLM_PROVIDER must be either 'anthropic' or 'openai'")
+
+        return cls(
+            jwt_secret=secret,
+            jwt_issuer=os.getenv("MAST_JWT_ISSUER", "mast-gateway"),
+            access_token_ttl_seconds=access_ttl,
+            refresh_token_ttl_seconds=refresh_ttl,
+            github_api_base_url=os.getenv("GITHUB_API_BASE_URL", "https://api.github.com").rstrip("/"),
+            llm_provider=llm_provider,
+            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY") or None,
+            anthropic_model=os.getenv("MAST_ANTHROPIC_MODEL", "claude-sonnet-4-5"),
+            openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+            openai_model=os.getenv("MAST_OPENAI_MODEL", "gpt-4o"),
+        )
