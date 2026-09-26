@@ -3,18 +3,18 @@
 
 | | |
 |---|---|
-| Last updated | September 25, 2026 |
-| Updated by | Build session (Block 1) |
+| Last updated | September 26, 2026 |
+| Updated by | Build session (Block 2) |
 | Repo | **https://github.com/Shubham-Agarwal-arc/mast** |
 
 ---
 
 ## ⚡ Quick Status
 
-- **Blocks complete:** 1 / 16
-- **Current block:** Block 2 — Database Schema & Persistence Layer — **NEXT**
-- **Last known-good state:** Block 1 — Repo Bootstrap & Conventions
-- **Blockers:** None for Block 1. Human must run the supplied git commands locally to create the first commit and push.
+- **Blocks complete:** 2 / 16 (Block 2 implementation complete; live PostgreSQL validation remains a handoff check)
+- **Current block:** Block 3 — Gateway Service Skeleton + Auth — **NEXT, gated on the PostgreSQL check below**
+- **Last known-good state:** Block 2 — schema, SQLite migration test, and PostgreSQL DDL generation pass
+- **Blockers:** Docker and a PostgreSQL service were unavailable in the Block 2 environment. Before beginning Block 3, run the fresh-PostgreSQL integration test and root Alembic upgrade as specified in the next-session prompt.
 
 ---
 
@@ -26,54 +26,69 @@
 
 ---
 
-## ▶️ Copy This Into a New Session to Run Block 2
+## ▶️ Copy This Into a New Session to Run Block 3
 
-Attach `MAST_BUILD_ROADMAP.md`, `MAST_BUILD_STATE.md` (this file), and
-`MAST_Product_Requirements_Document.md` to the message, then paste:
+Attach `MAST_BUILD_ROADMAP.md`, `MAST_BUILD_STATE.md` (this file),
+`docs/PRD.md`, and the Block-2 database files under `gateway/db/`, plus
+`alembic.ini`, `docker-compose.yml`, `requirements.txt`, and
+`tests/test_database.py`, then paste:
 
 ```
-I'm building MAST. This is Block 2 of 16 — Database Schema & Persistence Layer —
-per the attached MAST_BUILD_ROADMAP.md. My repo is [PASTE REPO URL].
+I'm building MAST. This is Block 3 of 16 — Gateway Service Skeleton + Auth —
+per the attached MAST_BUILD_ROADMAP.md. My repo is
+https://github.com/Shubham-Agarwal-arc/mast.
 
-Do exactly this, nothing from Block 3 onward. Generate every file as a
+Do exactly this, nothing from Block 4 onward. Generate every file as a
 real file I can download — do not run any git command yourself (no
 `git init`, `add`, `commit`, `push`, `clone`, or `pull`). I'll run
 whatever git commands you give me on my own machine.
 
-1. Read MAST_BUILD_STATE.md in full first, then MAST_BUILD_ROADMAP.md and
-   the attached PRD. Sanity-check that the attached files match the state
-   file before changing anything.
-2. Implement the database schema and persistence layer only:
-   - SQLAlchemy models for `User`, `Session`, `Interaction`, `MasteryState`,
-     and `Subscription`
-   - Alembic migrations for those five tables
-   - Use the fields specified in PRD §14 as the source of truth
-3. Add `docker-compose.yml` for a local development Postgres database.
-4. Add connection/session management under `/gateway/db/`.
-5. Add tests proving the models import cleanly and a fresh migration
-   applies cleanly against the local Postgres database.
-6. Validate Block 2's Definition of Done:
-   - `docker compose up -d db && alembic upgrade head` succeeds from a
-     fresh clone
-   - all five tables exist with the PRD §14 fields
+1. Read MAST_BUILD_STATE.md in full first, then MAST_BUILD_ROADMAP.md,
+   `docs/PRD.md`, and the attached Block-2 files. Sanity-check that the
+   attached files match the state file before changing anything.
+2. Before implementing Block 3, close the Block-2 PostgreSQL validation
+   gate. Start the local database with `docker compose up -d db`, set
+   `MAST_TEST_DATABASE_URL=postgresql+psycopg://mast:mast@localhost:5432/mast`,
+   and run `python -m pytest -q`. Confirm the fresh-PostgreSQL migration
+   test runs (not skips) and passes. Then run `alembic upgrade head` and
+   verify all five tables exist. If this gate fails, stop and fix only the
+   Block-2 migration/test issue before starting Block 3.
+3. Implement only Block 3 from the roadmap:
+   - FastAPI skeleton under `/gateway/app/`
+   - Server-side environment configuration only
+   - `GET /v1/health`
+   - GitHub OAuth token exchange endpoint: accept a GitHub token from the
+     extension, verify it with GitHub, and issue a short-lived MAST JWT plus
+     refresh token
+   - JWT issuance/verification middleware and create-on-first-signin using
+     the existing Block-2 `User` model
+   - Structured logging with request id, user id, and latency; never log
+     tokens, secrets, or credential-bearing headers
+4. Add focused tests, including a mocked OAuth exchange proving a JWT is
+   issued and a `User` row is created, plus health and unauthenticated
+   behavior tests appropriate to the implemented surface.
+5. Validate Block 3's Definition of Done from MAST_BUILD_ROADMAP.md:
+   - `uvicorn` boots locally against the Block-2 database
+   - `/v1/health` returns HTTP 200
+   - mocked OAuth exchange issues a JWT and creates a `User` row
    - tests pass
-7. Update MAST_BUILD_STATE.md as one of the generated files: mark Block 2
-   done with a short factual summary, record any deviation or ambiguity
-   and the smallest reasonable call taken, and write Block 3's full
-   session-ready prompt in the "Copy This Into a New Session" section
-   following this same format.
-8. Give me every generated/changed file, then give me the exact git bash
-   commands to run locally to add, commit, and push the work with a clear
-   conventional commit message. Do not run any git command yourself.
-9. Report back: what shipped, the validation results, and the exact
-   Block 3 prompt.
+6. Update MAST_BUILD_STATE.md as one of the generated files: mark Block 3
+   done with a short factual summary and any deviation, then write Block 4's
+   full session-ready prompt in the "Copy This Into a New Session" section
+   following this format. Preserve the documented Block-2 PostgreSQL
+   validation result.
+7. Give me every generated/changed file, then the exact Git Bash commands
+   to run locally to add, commit, and push with a clear conventional
+   commit message. Do not run any git command yourself.
+8. Report what shipped, validation results, the exact Block 4 prompt, and
+   any remaining blocker.
 
-Out of scope for Block 2: any API endpoints, FastAPI service behavior,
-authentication, Redis/caching, billing, production hosting choices, and
-anything from Blocks 3 onward.
+Out of scope for Block 3: Google OAuth, billing/quota, chat/LLM endpoints,
+Redis/caching, production hosting, and anything from Blocks 4 onward.
 
-Stay strictly inside Block 2. If anything is ambiguous, make the smallest
-reasonable call, note it in MAST_BUILD_STATE.md, and keep moving.
+Stay strictly inside Block 3 after the PostgreSQL gate passes. If anything
+is ambiguous, make the smallest reasonable call, record it in
+MAST_BUILD_STATE.md, and keep moving.
 ```
 
 ## ✅ What's Done
@@ -83,6 +98,7 @@ Each entry records the block, date, factual summary, and any deviation from the 
 | Block | Date | Summary |
 |---|---|---|
 | 1 | September 25, 2026 | Created the Block-1 repository structure (`/gateway`, `/extension`, `/ml`, `/docs`), copied the supplied PRD to `docs/PRD.md` and the supplied roadmap to `MAST_BUILD_ROADMAP.md` exactly, added the root README, Python/Node/OS/secret-focused `.gitignore`, minimal GitHub Actions placeholder, and MIT license placeholder. Because Git does not track empty directories, `.gitkeep` files were added only to the intentionally empty `/gateway`, `/extension`, and `/ml` directories so the required structure survives a fresh clone. The MIT copyright-holder text is provisional and should be confirmed later. No gateway, extension, ML, or CI implementation was added; Block 2 is now the next block. |
+| 2 | September 26, 2026 | Added SQLAlchemy 2 models and PostgreSQL-compatible Alembic migration for `User`, `Session`, `Interaction`, `MasteryState`, and `Subscription`, root Alembic configuration, local PostgreSQL Compose service, requirements, DB engine/session dependency, and schema/import tests. PRD §14 fields are represented; UUID primary keys and JSON columns model IDs, device/client metadata, and `kc_ids[]`; uniqueness constraints enforce provider identity, per-user KC state, and one subscription per user. Validation: `pytest -q` reported 2 passed and 1 skipped; the skipped test provisions a disposable PostgreSQL database and was skipped because Docker and a local PostgreSQL service were unavailable. PostgreSQL offline DDL generation succeeded with `PostgresqlImpl`. Deviation: live-Postgres execution of the migration could not be confirmed in this environment, so the next session must pass the explicit PostgreSQL gate in its prompt before Block 3 work. |
 
 ---
 
@@ -110,8 +126,8 @@ If a block can't finish inside budget: commit only what's genuinely complete and
 | # | Block | Status |
 |---|---|---|
 | 1 | Repo Bootstrap & Conventions | ✅ Complete |
-| 2 | Database Schema & Persistence Layer | ➡️ Next |
-| 3 | Gateway Service Skeleton + Auth | ⬜ Not started |
+| 2 | Database Schema & Persistence Layer | ✅ Implemented; live PostgreSQL gate pending |
+| 3 | Gateway Service Skeleton + Auth | ➡️ Next, after Block-2 PostgreSQL gate |
 | 4 | Local ML Export Pipeline (ONNX) | ⬜ Not started |
 | 5 | Extension Scaffold + Local Inference | ⬜ Not started |
 | 6 | Local Embeddings & Mastery-Gated Retrieval | ⬜ Not started |
