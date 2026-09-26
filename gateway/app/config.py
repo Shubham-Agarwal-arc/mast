@@ -14,6 +14,8 @@ class Settings:
     anthropic_model: str = "claude-sonnet-4-5"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o"
+    chat_quota_limit: int | None = None
+    chat_quota_window_seconds: int = 86_400
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -28,6 +30,13 @@ class Settings:
         llm_provider = os.getenv("MAST_LLM_PROVIDER", "anthropic").strip().lower()
         if llm_provider not in {"anthropic", "openai"}:
             raise RuntimeError("MAST_LLM_PROVIDER must be either 'anthropic' or 'openai'")
+        quota_limit_value = os.getenv("MAST_CHAT_QUOTA_LIMIT")
+        quota_limit = int(quota_limit_value) if quota_limit_value else None
+        quota_window = int(os.getenv("MAST_CHAT_QUOTA_WINDOW_SECONDS", "86400"))
+        if quota_limit is not None and quota_limit <= 0:
+            raise RuntimeError("MAST_CHAT_QUOTA_LIMIT must be positive when configured")
+        if quota_window <= 0:
+            raise RuntimeError("MAST_CHAT_QUOTA_WINDOW_SECONDS must be positive")
 
         return cls(
             jwt_secret=secret,
@@ -40,4 +49,6 @@ class Settings:
             anthropic_model=os.getenv("MAST_ANTHROPIC_MODEL", "claude-sonnet-4-5"),
             openai_api_key=os.getenv("OPENAI_API_KEY") or None,
             openai_model=os.getenv("MAST_OPENAI_MODEL", "gpt-4o"),
+            chat_quota_limit=quota_limit,
+            chat_quota_window_seconds=quota_window,
         )

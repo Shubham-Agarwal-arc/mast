@@ -10,17 +10,28 @@ from langchain_openai import ChatOpenAI
 os.environ.setdefault("MAST_JWT_SECRET", "test-only-secret-with-at-least-32-bytes")
 
 from gateway.app.auth import get_current_user
-from gateway.app.chat import build_socratic_chain, get_socratic_chain
+from gateway.app.chat import (
+    build_constitutional_verifier,
+    build_socratic_chain,
+    get_constitutional_verifier,
+    get_socratic_chain,
+)
 from gateway.app.config import Settings
 from gateway.app.main import create_app
+from gateway.app.quota import ChatQuotaCounter
 
 
-def make_client(*, authenticated: bool, chain=None, settings: Settings | None = None) -> TestClient:
+def make_client(
+    *, authenticated: bool, chain=None, verifier=None, settings: Settings | None = None
+) -> TestClient:
     app = create_app(settings or Settings(jwt_secret="test-only-secret-with-at-least-32-bytes"))
     if authenticated:
         app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id="test-user")
     if chain is not None:
         app.dependency_overrides[get_socratic_chain] = lambda: chain
+    if verifier is None:
+        verifier = RunnableLambda(lambda _values: "SOCRATIC")
+    app.dependency_overrides[get_constitutional_verifier] = lambda: verifier
     return TestClient(app)
 
 
@@ -50,6 +61,130 @@ def test_authenticated_chat_returns_socratic_generation_from_mocked_chain() -> N
     assert response.json() == {
         "response": "What do the trailing dimensions tell you about how these tensors can align?"
     }
+
+
+def test_direct_answer_is_regenerated_and_verified_before_return() -> None:
+    generated: list[dict[str, object]] = []
+    verdicts = iter(["DIRECT", "SOCRATIC"])
+
+    def generate(values: dict[str, object]) -> str:
+        generated.append(values)
+        return "The direct draft" if len(generated) == 1 else "Which dimensions can align?"
+
+    verifier = RunnableLambda(lambda _values: next(verdicts))
+    with make_client(
+        authenticated=True,
+        chain=RunnableLambda(generate),
+        verifier=verifier,
+    ) as client:
+        response = client.post("/v1/chat", json=valid_chat_request())
+
+    assert response.status_code == 200
+    assert response.json() == {"response": "Which dimensions can align?"}
+    assert len(generated) == 2
+    assert generated[0]["regeneration_guidance"] == ""
+    assert "classified as a direct answer" in str(generated[1]["regeneration_guidance"])
+
+
+def test_socratic_candidate_is_returned_without_regeneration() -> None:
+    generated: list[dict[str, object]] = []
+    chain = RunnableLambda(lambda values: generated.append(values) or "What do the dimensions imply?")
+    verifier = RunnableLambda(lambda _values: "SOCRATIC")
+
+    with make_client(authenticated=True, chain=chain, verifier=verifier) as client:
+        response = client.post("/v1/chat", json=valid_chat_request())
+
+    assert response.status_code == 200
+    assert response.json() == {"response": "What do the dimensions imply?"}
+    assert len(generated) == 1
+
+
+def test_two_regeneration_cap_rejects_response_if_every_candidate_is_direct() -> None:
+    generated: list[dict[str, object]] = []
+    verified: list[dict[str, object]] = []
+    chain = RunnableLambda(
+        lambda values: generated.append(values) or f"Direct candidate {len(generated)}"
+    )
+    verifier = RunnableLambda(lambda values: verified.append(values) or "DIRECT")
+
+    with make_client(authenticated=True, chain=chain, verifier=verifier) as client:
+        response = client.post("/v1/chat", json=valid_chat_request())
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Socratic response could not be verified"}
+    assert len(generated) == len(verified) == 3
+    assert "Direct candidate" not in response.text
+
+
+def test_constitutional_outcome_log_contains_only_safe_metadata(caplog) -> None:
+    sensitive_input = "private learner content sentinel"
+    sensitive_candidate = "private direct response sentinel"
+    payload = valid_chat_request()
+    payload["message"] = sensitive_input
+    verdicts = iter(["DIRECT", "SOCRATIC"])
+    chain = RunnableLambda(lambda _values: sensitive_candidate if next(verdicts) == "DIRECT" else "Which dimension?" )
+    verifier = RunnableLambda(lambda values: "DIRECT" if values["candidate_response"] == sensitive_candidate else "SOCRATIC")
+
+    with make_client(
+        authenticated=True,
+        chain=chain,
+        verifier=verifier,
+    ) as client:
+        with caplog.at_level("INFO", logger="mast.chat"):
+            response = client.post("/v1/chat", json=payload)
+
+    assert response.status_code == 200
+    record = next(record for record in caplog.records if record.name == "mast.chat")
+    assert record.getMessage() == "constitutional_check_complete"
+    assert record.constitutional_triggered is True
+    assert record.regeneration_attempts == 1
+    assert record.regeneration_succeeded is True
+    assert record.final_response_verified is True
+    assert sensitive_input not in caplog.text
+    assert sensitive_candidate not in caplog.text
+
+
+def test_quota_counter_limits_per_user_and_resets_after_window() -> None:
+    now = [100.0]
+    counter = ChatQuotaCounter(window_seconds=60, clock=lambda: now[0])
+
+    first = counter.consume("user-a", limit=1)
+    blocked = counter.consume("user-a", limit=1)
+    other_user = counter.consume("user-b", limit=1)
+    now[0] += 60
+    after_reset = counter.consume("user-a", limit=1)
+
+    assert first.allowed and first.used == 1
+    assert not blocked.allowed and blocked.used == 1 and blocked.retry_after_seconds == 60
+    assert other_user.allowed and other_user.used == 1
+    assert after_reset.allowed and after_reset.used == 1
+
+
+def test_chat_quota_blocks_before_a_second_generation() -> None:
+    generated: list[dict[str, object]] = []
+    chain = RunnableLambda(lambda values: generated.append(values) or "What can you infer?")
+    settings = Settings(
+        jwt_secret="test-only-secret-with-at-least-32-bytes",
+        chat_quota_limit=1,
+        chat_quota_window_seconds=60,
+    )
+    with make_client(authenticated=True, chain=chain, settings=settings) as client:
+        first = client.post("/v1/chat", json=valid_chat_request())
+        second = client.post("/v1/chat", json=valid_chat_request())
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.json() == {"detail": "Chat quota exceeded"}
+    assert second.headers["retry-after"]
+    assert len(generated) == 1
+
+
+def test_verifier_prompt_chain_runs_against_a_mocked_model() -> None:
+    verifier = build_constitutional_verifier(FakeListChatModel(responses=["SOCRATIC"]))
+
+    result = verifier.invoke({"candidate_response": "Which dimension should align?"})
+
+    assert result == "SOCRATIC"
 
 
 def test_chat_requires_existing_gateway_jwt_authentication() -> None:

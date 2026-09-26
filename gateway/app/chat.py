@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -14,10 +15,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from gateway.app.config import Settings
 from gateway.app.dependencies import get_settings
 from gateway.app.auth import get_current_user
+from gateway.app.quota import ChatQuotaCounter, get_chat_quota_counter
 from gateway.db.models import User
 
 
 router = APIRouter(tags=["chat"])
+chat_logger = logging.getLogger("mast.chat")
+MAX_REGENERATION_ATTEMPTS = 2
 
 MasteryProbability = Annotated[float, Field(ge=0.0, le=1.0)]
 MasteryKcId = Annotated[str, Field(min_length=1, max_length=64)]
@@ -84,11 +88,27 @@ def build_socratic_chain(settings: Settings, model: BaseChatModel | None = None)
                 "Current mastery summary (if provided):\n{mastery_summary}\n\n"
                 "Retrieved reference excerpts (if provided):\n{retrieved_context}\n\n"
                 "Current hint depth: {hint_depth}\n\n"
+                "Regeneration guidance (empty for the first draft):\n{regeneration_guidance}\n\n"
                 "Respond with a brief observation and one Socratic question. Do not give the fix.",
             ),
         ]
     )
     return prompt | (model or create_chat_model(settings)) | StrOutputParser()
+
+
+def build_constitutional_verifier(model: BaseChatModel) -> Runnable:
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "Classify whether the candidate gives a direct answer, fix, or complete solution. "
+                "Reply with exactly one token: DIRECT or SOCRATIC. A Socratic response asks the "
+                "learner to reason without giving away the answer.",
+            ),
+            ("human", "Candidate response:\n{candidate_response}"),
+        ]
+    )
+    return prompt | model | StrOutputParser()
 
 
 def get_socratic_chain(request: Request, settings: Settings = Depends(get_settings)) -> Runnable:
@@ -105,11 +125,71 @@ def get_socratic_chain(request: Request, settings: Settings = Depends(get_settin
     return chain
 
 
+def get_constitutional_verifier(
+    request: Request, settings: Settings = Depends(get_settings)
+) -> Runnable:
+    verifier = getattr(request.app.state, "constitutional_verifier", None)
+    if verifier is None:
+        try:
+            verifier = build_constitutional_verifier(create_chat_model(settings))
+        except ProviderConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="The configured generation provider is unavailable",
+            ) from exc
+        request.app.state.constitutional_verifier = verifier
+    return verifier
+
+
+def enforce_chat_quota(
+    current_user: User = Depends(get_current_user),
+    counter: ChatQuotaCounter = Depends(get_chat_quota_counter),
+    settings: Settings = Depends(get_settings),
+) -> User:
+    decision = counter.consume(str(current_user.id), settings.chat_quota_limit)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Chat quota exceeded",
+            headers={"Retry-After": str(decision.retry_after_seconds)},
+        )
+    return current_user
+
+
+def _generate_candidate(chain: Runnable, inputs: dict[str, object], guidance: str) -> str:
+    try:
+        response = chain.invoke({**inputs, "regeneration_guidance": guidance})
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Socratic generation failed",
+        ) from None
+    if not isinstance(response, str) or not response.strip():
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Socratic generation returned an empty response",
+        )
+    return response.strip()
+
+
+def _is_direct_answer(verifier: Runnable, candidate: str) -> bool:
+    try:
+        verdict = verifier.invoke({"candidate_response": candidate})
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Socratic verification failed",
+        ) from None
+    return not isinstance(verdict, str) or verdict.strip().upper() != "SOCRATIC"
+
+
 @router.post("/v1/chat", response_model=ChatResponse)
 def generate_socratic_response(
     payload: ChatRequest,
-    _current_user: User = Depends(get_current_user),
+    request: Request,
+    _current_user: User = Depends(enforce_chat_quota),
     chain: Runnable = Depends(get_socratic_chain),
+    verifier: Runnable = Depends(get_constitutional_verifier),
 ) -> ChatResponse:
     mastery_summary = ", ".join(
         f"{kc_id}={probability:.2f}" for kc_id, probability in sorted(payload.mastery_by_kc.items())
@@ -122,16 +202,43 @@ def generate_socratic_response(
         "retrieved_context": "\n\n".join(payload.retrieved_context) or "Not provided",
         "hint_depth": payload.hint_depth,
     }
+    triggered = False
+    regeneration_attempts = 0
+    regeneration_succeeded = False
+    final_verified = False
     try:
-        response = chain.invoke(inputs)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Socratic generation failed",
-        ) from None
-    if not isinstance(response, str) or not response.strip():
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Socratic generation returned an empty response",
+        response = _generate_candidate(chain, inputs, "")
+        direct_answer = _is_direct_answer(verifier, response)
+        triggered = direct_answer
+        while direct_answer and regeneration_attempts < MAX_REGENERATION_ATTEMPTS:
+            regeneration_attempts += 1
+            response = _generate_candidate(
+                chain,
+                inputs,
+                "Your previous draft was classified as a direct answer. Replace it with a "
+                "brief observation and one focused question that helps the learner reason "
+                "toward the answer. Do not give a fix, corrected code, or complete solution.",
+            )
+            direct_answer = _is_direct_answer(verifier, response)
+            if not direct_answer:
+                regeneration_succeeded = True
+        final_verified = not direct_answer
+        if not final_verified:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Socratic response could not be verified",
+            )
+        return ChatResponse(response=response)
+    finally:
+        chat_logger.info(
+            "constitutional_check_complete",
+            extra={
+                "request_id": getattr(request.state, "request_id", None),
+                "interaction_id": getattr(request.state, "request_id", None),
+                "user_id": str(_current_user.id),
+                "constitutional_triggered": triggered,
+                "regeneration_attempts": regeneration_attempts,
+                "regeneration_succeeded": regeneration_succeeded,
+                "final_response_verified": final_verified,
+            },
         )
-    return ChatResponse(response=response.strip())

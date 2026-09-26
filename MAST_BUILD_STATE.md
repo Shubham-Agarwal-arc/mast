@@ -4,16 +4,16 @@
 | | |
 |---|---|
 | Last updated | September 27, 2026 |
-| Updated by | Build session (Block 8) |
+| Updated by | Build session (Block 9) |
 | Repo | **https://github.com/Shubham-Agarwal-arc/mast** |
 
 ---
 
 ## ⚡ Quick Status
 
-- **Blocks complete:** 8 / 16 (Gateway generation chain and mocked-provider validation complete; live provider smoke test pending server credentials)
-- **Current block:** Block 9 — Constitutional Verify + Regeneration + Quota Middleware — **NEXT**
-- **Last known-good state:** Blocks 2–8 — PostgreSQL migration, Gateway auth/health, local synthetic inference/retrieval, auth/BYOK services, and authenticated LCEL generation tests pass
+- **Blocks complete:** 9 / 16 (constitutional verification, capped regeneration, safe outcome logging, and optional in-process quota mechanism complete; live provider smoke test pending server credentials)
+- **Current block:** Block 10 — Chat Panel Webview — **NEXT**
+- **Last known-good state:** Blocks 2–9 — PostgreSQL migration, Gateway auth/health, local synthetic inference/retrieval, auth/BYOK services, authenticated generation, constitutional verification, and quota-mechanism tests pass
 - **Blockers:** No Anthropic/OpenAI server credentials were configured, so no live-provider smoke call was made. Block 7's interactive GitHub sign-in against local Gateway also remains a manual Extension Host check. Original classifier/DKT weights, original 30-KC taxonomy, prototype ChromaDB corpus/difficulty metadata, training/session corpus, and held-out evaluation data remain unavailable; model quality and production retrieval content are unverified.
 
 ---
@@ -26,15 +26,16 @@
 
 ---
 
-## ▶️ Copy This Into a New Session to Run Block 9
+## ▶️ Copy This Into a New Session to Run Block 10
 
 Attach `MAST_BUILD_ROADMAP.md`, `MAST_BUILD_STATE.md` (this file),
-`docs/PRD.md`, current `/gateway/app/` and `/gateway/db/` contents,
-`requirements.txt`, `docker-compose.yml`, and Block 8 chat tests, then paste:
+`docs/PRD.md`, current `/extension/src/` and `/extension/test/` contents,
+`extension/package.json`, the Gateway chat/auth contract and relevant tests,
+local inference/retrieval modules, and model/corpus metadata, then paste:
 
 ```
-I'm building MAST. This is Block 9 of 16 — Constitutional Verify +
-Regeneration + Quota Middleware — per the attached MAST_BUILD_ROADMAP.md.
+I'm building MAST. This is Block 10 of 16 — Chat Panel Webview — per the
+attached MAST_BUILD_ROADMAP.md.
 My repo is
 https://github.com/Shubham-Agarwal-arc/mast.
 
@@ -44,56 +45,63 @@ real file I can download — do not run any git command yourself (no
 whatever git commands you give me on my own machine.
 
 1. Read MAST_BUILD_STATE.md in full first, then MAST_BUILD_ROADMAP.md,
-   `docs/PRD.md`, the current Gateway generation/auth files, Block 8 tests,
-   and the extension request contract. Sanity-check these against the
-   state file. Preserve the pending live-provider smoke check, pending
-   Block-7 interactive GitHub sign-in note, and synthetic model/corpus
-   limitations.
-2. Implement only Block 9 from the roadmap:
-   - Add a constitutional verifier after the Block-8 generation step in
-     `/v1/chat`; every candidate response is checked before it is returned.
-   - If a response is classified as a direct answer, regenerate it under
-     the Socratic system prompt, with regeneration capped at two attempts.
-     Keep the cap explicit and test the final behavior when all attempts
-     are flagged.
-   - Record per-interaction trigger and regeneration outcome in structured
-     logs using only safe metadata; never log request content, provider
-     credentials, tokens, or raw provider exceptions.
-   - Add the quota-check middleware mechanism (counting/limiting logic) as
-     specified by Block 9. Keep real Free/Pro tier enforcement and Stripe
-     integration out of scope; those belong to Block 12.
-   - Preserve server-only provider selection/credentials, existing JWT
-     authentication, and the generation request/response contract.
-3. Add focused tests: a deliberately direct answer triggers regeneration;
-   an already-Socratic response is returned without regeneration; the
-   two-attempt cap is obeyed; per-interaction trigger/regen metadata is
-   recorded safely; quota mechanism behavior is covered without billing.
-   Use mocked LLM/provider clients only; tests must not make real calls.
-4. Validate Block 9's Definition of Done from MAST_BUILD_ROADMAP.md:
-   - A direct-answer candidate is caught and regenerated in a test.
-   - Trigger/regeneration outcome is logged per interaction without
-     sensitive content.
-   - The full authenticated `/v1/chat` round trip passes with the
-     constitutional stage in place.
-   - Tests pass; distinguish mocked provider checks from any real-provider
-     manual smoke test.
-5. Update MAST_BUILD_STATE.md as one of the generated files: record Block 9
-   results and deviations; preserve Blocks 2–8 validation, the pending
-   manual authentication/provider checks, and synthetic model/corpus
-   caveats; then write Block 10's full session-ready prompt in the
+   `docs/PRD.md`, the extension manifest and activation code, current auth
+   and Gateway client modules, local inference/retrieval modules, and the
+   Block 9 Gateway chat tests. Sanity-check those files against the state
+   file. Preserve the pending live-provider smoke check, pending Block-7
+   interactive GitHub sign-in check, and synthetic model/corpus limitations.
+2. Implement only Block 10 from the roadmap:
+   - Add a VS Code Chat Panel webview with a message thread, mastery
+     percentage/session-active badges, an input box, two contextual
+     follow-up suggestion buttons, and a Resolved action.
+   - Wire the existing local classifier (Block 5) and local mastery-gated
+     retrieval (Block 6) into the Gateway `/v1/chat` flow, then render the
+     unchanged `{ "response": string }` result.
+   - Use the existing GitHub/MAST authentication services and securely
+     stored MAST access token; do not expose provider credentials or add
+     an API-key prompt to Managed Cloud Mode.
+   - Keep the webview secure: restrictive Content Security Policy,
+     nonce-protected scripts, escaped/untrusted content handling, and
+     narrow message commands. Follow existing extension conventions and
+     VS Code accessibility/theming expectations.
+   - Preserve the Gateway's constitutional verifier and quota behavior.
+     Handle safe API errors in the panel without discarding the user's
+     draft or current interaction state.
+   - Do not spawn a local subprocess/server. Do not add Knowledge Map,
+     `mast.runCode`, billing/upgrade UI, Stripe, telemetry dashboards, or
+     packaging work; those are later blocks.
+3. Add focused Extension tests using mocked VS Code APIs, Gateway
+   transport, and local inference/retrieval dependencies. Cover webview
+   message validation, request construction and authenticated chat
+   contract, Socratic response rendering, suggestions/Resolved behavior,
+   and error/draft preservation. Tests must not make network calls or
+   start a subprocess.
+4. Validate Block 10's Definition of Done from MAST_BUILD_ROADMAP.md:
+   - An end-to-end manual or appropriately mocked flow from an error input
+     through local classification/retrieval and authenticated Gateway
+     response to Resolved is covered.
+   - Confirm no code in this block starts a local subprocess/server.
+   - Run extension typecheck and test suite, and the Gateway chat tests if
+     the request contract changes. Distinguish mocked checks from pending
+     manual sign-in/provider checks.
+5. Update MAST_BUILD_STATE.md as one of the generated files: record Block
+   10 results/deviations, preserve Block 9 and earlier validation, the
+   pending manual authentication/provider checks, and synthetic model/
+   corpus caveats; then write Block 11's full session-ready prompt in the
    "Copy This Into a New Session" section in this format.
 6. Give me every generated/changed file, then the exact Git Bash commands
    to add, commit, and push with a clear conventional commit message. Do
    not run any git command yourself.
-7. Report what shipped, validation results, the exact Block 10 prompt, and
+7. Report what shipped, validation results, the exact Block 11 prompt, and
    any remaining blocker.
 
-Out of scope for Block 9: Stripe, real subscription-tier quota enforcement,
-dashboards/telemetry, extension UI, Gateway auth redesign, and anything
-from Block 10 onward.
+Out of scope for Block 10: Knowledge Map, `mast.runCode`, billing/upgrade
+UI, Stripe, telemetry dashboards, packaging, Gateway auth redesign, and
+anything from Block 11 onward.
 
-Stay strictly inside Block 9. If real provider credentials are unavailable,
-use mocked providers and leave the manual smoke check explicitly pending.
+Stay strictly inside Block 10. If real Gateway/provider credentials or an
+Extension Host are unavailable, use mocked tests and leave the relevant
+manual smoke checks explicitly pending.
 ```
 
 ## ✅ What's Done
@@ -110,6 +118,7 @@ Each entry records the block, date, factual summary, and any deviation from the 
 | 6 | September 27, 2026 | Inspected the repository and found no prototype ChromaDB documents, source text, original KC mapping, or difficulty metadata. Added a versioned portable corpus schema with an empty `source_not_provided` production corpus, import/validation support, a local deterministic cosine vector index, the exact per-KC ceiling `0.4 + mastery * 0.6`, and an explicit difficulty-proximity rerank score (`0.8 * cosine + 0.2 * (1 - abs(document difficulty - KC mastery))`; the PRD names both ranking signals but gives no weight). Bundled the pinned `Xenova/all-MiniLM-L6-v2` INT8 ONNX model and tokenizer/config under `extension/models/` (upstream revision `751bff37182d3f1213fa05d7196b954e230abad9`, Apache-2.0; verified model SHA-256). Added `@xenova/transformers` with remote models disabled and a clearly synthetic test-only corpus. Validation: TypeScript check passed; `npm test` passed 11/11 with global `fetch` disabled, covering low/mid/high mastery filtering, ranking, deterministic index behavior, empty-corpus behavior, actual local MiniLM embedding and retrieval. Latest local test-fixture query latency was median 2.844ms / p95 3.599ms over 30 warm queries; this small synthetic fixture is not comparable to the prototype's full corpus benchmark. Deviation/blocker: production import of the original reference corpus remains blocked until its source documents and metadata are provided; no substitute is presented as original MAST content. Block 4's synthetic classifier/DKT caveat and unverified accuracy claims remain in force. |
 | 7 | September 27, 2026 | Added a typed extension Gateway client matching `/v1/auth/github` and `/v1/auth/refresh`, a VS Code GitHub Authentication API adapter requesting only `read:user`, MAST access/refresh token persistence through `SecretStorage`, BYOK key set/read/clear through a separate `SecretStorage` service, and a Managed Cloud/BYOK setting and selector. Remote Gateway URLs require HTTPS; loopback HTTP is allowed for local development. No Gateway code changed and no BYOK key is sent to the Gateway. Automated tests mock VS Code auth, Gateway transport, and storage. Validation: `npm run typecheck` passed; `npm test` passed 20/20 with mocked transport and no real credentials; full Python/PostgreSQL suite passed 12/12. Manual interactive sign-in against the local Gateway was not performed because this environment did not launch a VS Code Extension Host for real Authentication API consent; that manual smoke check remains pending. Blocks 4–6 synthetic model and missing original corpus limitations remain. |
 | 8 | September 27, 2026 | Added server-side LangChain LCEL generation for authenticated `POST /v1/chat`, bounded request/response schemas, Socratic system instructions, server-only Anthropic/OpenAI provider selection and env configuration, and generic safe errors for missing providers or generation failures. No Block-9 verifier/regeneration, quota, billing, or extension UI was added. Tests use `FakeListChatModel`/Runnable mocks, prove the existing JWT dependency returns 401 when unauthenticated, provider selection comes from server settings, extra client provider fields and overlong context are rejected, and provider exception details do not reach responses. Validation: full PostgreSQL-enabled Python suite reported 19 passed, 0 skipped; no real provider credentials were configured and no live LLM call was made. Manual provider smoke remains pending. Existing Block-7 interactive sign-in check and Block-4/6 synthetic data limitations remain. |
+| 9 | September 27, 2026 | Added a server-selected constitutional classification chain after every generation candidate, explicit two-regeneration cap, Socratic regeneration guidance, and fail-closed behavior (generic 502) if the final candidate is still direct or verification fails. Added safe per-request constitutional outcome logs (request/interaction correlation ID, user ID, trigger flag, retry count, retry success, final verification status) without content, credentials, tokens, or provider exceptions. Added a thread-safe process-local fixed-window quota counter keyed by authenticated user, with optional server environment limits (`MAST_CHAT_QUOTA_LIMIT`, `MAST_CHAT_QUOTA_WINDOW_SECONDS`) and generic 429/Retry-After response; no Free/Pro policy, persistence, Redis, or billing was added. Validation: focused chat tests 14 passed; full Python suite 25 passed, 1 skipped, 39 warnings. All provider calls were mocked; no live-provider smoke call was made. Deviation: because no quota storage/service existed and tier enforcement is Block 12, the mechanism is process-local and its limit defaults to disabled while requests are counted. Block-7 interactive sign-in remains pending; Blocks 4–6 synthetic model/corpus and unavailable holdout-data limitations remain. |
 
 ---
 
@@ -144,8 +153,7 @@ If a block can't finish inside budget: commit only what's genuinely complete and
 | 6 | Local Embeddings & Mastery-Gated Retrieval | ✅ Complete; original reference corpus import pending |
 | 7 | Extension Auth Flow + API Client + BYOK | ✅ Complete; interactive sign-in smoke check pending |
 | 8 | Gateway Socratic Generation Chain | ✅ Complete; mocked providers only, live-provider smoke pending |
-| 9 | Constitutional Verify + Regen + Quota | ➡️ Next |
-| 9 | Constitutional Verify + Regen + Quota | ⬜ Not started |
+| 9 | Constitutional Verify + Regen + Quota | ✅ Complete; mocked providers only, process-local optional quota |
 | 10 | Chat Panel Webview | ⬜ Not started |
 | 11 | Knowledge Map + Error Capture | ⬜ Not started |
 | 12 | Billing (Stripe) & Quota Enforcement | ⬜ Not started |
