@@ -1,0 +1,14 @@
+{
+  "name": "mast-ml-artifact-smoke-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node smoke_test.mjs"
+  },
+  "dependencies": {
+    "onnxruntime-node": "^1.23.0"
+  },
+  "allowScripts": {
+    "onnxruntime-node@1.30.0": true
+  }
+}

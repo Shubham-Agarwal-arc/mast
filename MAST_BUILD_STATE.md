@@ -4,17 +4,17 @@
 | | |
 |---|---|
 | Last updated | September 26, 2026 |
-| Updated by | Build session (Block 2) |
+| Updated by | Build session (Block 4) |
 | Repo | **https://github.com/Shubham-Agarwal-arc/mast** |
 
 ---
 
 ## ⚡ Quick Status
 
-- **Blocks complete:** 2 / 16 (Block 2 implementation complete; live PostgreSQL validation remains a handoff check)
-- **Current block:** Block 3 — Gateway Service Skeleton + Auth — **NEXT, gated on the PostgreSQL check below**
-- **Last known-good state:** Block 2 — schema, SQLite migration test, and PostgreSQL DDL generation pass
-- **Blockers:** Docker and a PostgreSQL service were unavailable in the Block 2 environment. Before beginning Block 3, run the fresh-PostgreSQL integration test and root Alembic upgrade as specified in the next-session prompt.
+- **Blocks complete:** 4 / 16 (Block 4 pipeline and format checks complete; research benchmark validation unavailable)
+- **Current block:** Block 5 — Extension Scaffold + Local Classifier/DKT Inference — **NEXT**
+- **Last known-good state:** Blocks 2–4 — live PostgreSQL migration, Gateway auth/health, and synthetic ONNX export/runtime checks pass
+- **Blockers:** Original classifier/DKT weights, the original 30-KC taxonomy, training/session corpus, and held-out evaluation data were absent. Block 4 exports are explicitly synthetic bootstrap artifacts; PRD benchmark claims are not validated and must not be attributed to them.
 
 ---
 
@@ -26,69 +26,69 @@
 
 ---
 
-## ▶️ Copy This Into a New Session to Run Block 3
+## ▶️ Copy This Into a New Session to Run Block 5
 
 Attach `MAST_BUILD_ROADMAP.md`, `MAST_BUILD_STATE.md` (this file),
-`docs/PRD.md`, and the Block-2 database files under `gateway/db/`, plus
-`alembic.ini`, `docker-compose.yml`, `requirements.txt`, and
-`tests/test_database.py`, then paste:
+`docs/PRD.md`, the Block 4 contents of `/ml/`, `artifacts/synthetic/`,
+and `requirements.txt`, then paste:
 
 ```
-I'm building MAST. This is Block 3 of 16 — Gateway Service Skeleton + Auth —
-per the attached MAST_BUILD_ROADMAP.md. My repo is
+I'm building MAST. This is Block 5 of 16 — Extension Scaffold + Local
+Classifier/DKT Inference — per the attached MAST_BUILD_ROADMAP.md. My repo is
 https://github.com/Shubham-Agarwal-arc/mast.
 
-Do exactly this, nothing from Block 4 onward. Generate every file as a
+Do exactly this, nothing from Block 6 onward. Generate every file as a
 real file I can download — do not run any git command yourself (no
 `git init`, `add`, `commit`, `push`, `clone`, or `pull`). I'll run
 whatever git commands you give me on my own machine.
 
 1. Read MAST_BUILD_STATE.md in full first, then MAST_BUILD_ROADMAP.md,
-   `docs/PRD.md`, and the attached Block-2 files. Sanity-check that the
-   attached files match the state file before changing anything.
-2. Before implementing Block 3, close the Block-2 PostgreSQL validation
-   gate. Start the local database with `docker compose up -d db`, set
-   `MAST_TEST_DATABASE_URL=postgresql+psycopg://mast:mast@localhost:5432/mast`,
-   and run `python -m pytest -q`. Confirm the fresh-PostgreSQL migration
-   test runs (not skips) and passes. Then run `alembic upgrade head` and
-   verify all five tables exist. If this gate fails, stop and fix only the
-   Block-2 migration/test issue before starting Block 3.
-3. Implement only Block 3 from the roadmap:
-   - FastAPI skeleton under `/gateway/app/`
-   - Server-side environment configuration only
-   - `GET /v1/health`
-   - GitHub OAuth token exchange endpoint: accept a GitHub token from the
-     extension, verify it with GitHub, and issue a short-lived MAST JWT plus
-     refresh token
-   - JWT issuance/verification middleware and create-on-first-signin using
-     the existing Block-2 `User` model
-   - Structured logging with request id, user id, and latency; never log
-     tokens, secrets, or credential-bearing headers
-4. Add focused tests, including a mocked OAuth exchange proving a JWT is
-   issued and a `User` row is created, plus health and unauthenticated
-   behavior tests appropriate to the implemented surface.
-5. Validate Block 3's Definition of Done from MAST_BUILD_ROADMAP.md:
-   - `uvicorn` boots locally against the Block-2 database
-   - `/v1/health` returns HTTP 200
-   - mocked OAuth exchange issues a JWT and creates a `User` row
-   - tests pass
-6. Update MAST_BUILD_STATE.md as one of the generated files: mark Block 3
-   done with a short factual summary and any deviation, then write Block 4's
-   full session-ready prompt in the "Copy This Into a New Session" section
-   following this format. Preserve the documented Block-2 PostgreSQL
-   validation result.
-7. Give me every generated/changed file, then the exact Git Bash commands
-   to run locally to add, commit, and push with a clear conventional
-   commit message. Do not run any git command yourself.
-8. Report what shipped, validation results, the exact Block 4 prompt, and
-   any remaining blocker.
+   `docs/PRD.md`, the current `/extension/` and `/ml/` contents, and the
+   attached Block-4 artifacts. Sanity-check that the attachments match the
+   state file before changing anything. Preserve Block 4's explicit
+   synthetic-artifact warning; do not describe these models as the research
+   classifier or DKT weights.
+2. Implement only Block 5 from the roadmap:
+   - Add the TypeScript VS Code extension scaffold and manifest under
+     `/extension/`.
+   - Add `onnxruntime-node` inference modules that load the Block-4
+     `artifacts/synthetic/error_classifier.synthetic.onnx` and
+     `artifacts/synthetic/dkt.synthetic.onnx` artifacts from the repo's
+     defined development/build paths. Do not copy model artifacts into
+     unrelated folders without documenting that packaging choice.
+   - Implement `classifyError()` and `updateMastery()` against the actual
+     ONNX input/output names, shapes, and DKT token/state format. The
+     classifier must return one of the eight labels plus confidence; do not
+     add user confirmation UI or retrieval in this block.
+   - Keep DKT hidden state explicit and serializable in accordance with
+     `ml/DKT_STATE_FORMAT.md`.
+3. Add offline unit tests for representative error inputs and DKT updates.
+   Tests must not make network calls. Because the supplied ONNX artifacts
+   are synthetic scaffolding, tests validate interface/runtime correctness
+   only and must not claim model accuracy.
+4. Validate Block 5's Definition of Done from MAST_BUILD_ROADMAP.md:
+   - `npm test` passes with zero network activity.
+   - Measure classifier inference latency and report it; note that PRD
+     accuracy claims remain unverified until real model weights and holdout
+     data are supplied.
+   - TypeScript build/type checks and tests pass.
+5. Update MAST_BUILD_STATE.md as one of the generated files: record Block 5
+   results and deviations, preserve the Postgres/Gateway results and the
+   synthetic-model limitation, then write Block 6's full session-ready
+   prompt in the "Copy This Into a New Session" section in this format.
+6. Give me every generated/changed file, then the exact Git Bash commands
+   to add, commit, and push with a clear conventional commit message. Do
+   not run any git command yourself.
+7. Report what shipped, test/build/latency results, the exact Block 6
+   prompt, and any remaining blocker.
 
-Out of scope for Block 3: Google OAuth, billing/quota, chat/LLM endpoints,
-Redis/caching, production hosting, and anything from Blocks 4 onward.
+Out of scope for Block 5: embeddings/retrieval, Gateway calls or changes,
+chat/Knowledge Map UI, API/auth changes, real model retraining, and anything
+from Block 6 onward.
 
-Stay strictly inside Block 3 after the PostgreSQL gate passes. If anything
-is ambiguous, make the smallest reasonable call, record it in
-MAST_BUILD_STATE.md, and keep moving.
+Stay strictly inside Block 5. If actual model artifacts cannot be resolved
+or loaded, stop at that boundary and record the concrete blocker rather
+than silently substituting another model.
 ```
 
 ## ✅ What's Done
@@ -98,7 +98,9 @@ Each entry records the block, date, factual summary, and any deviation from the 
 | Block | Date | Summary |
 |---|---|---|
 | 1 | September 25, 2026 | Created the Block-1 repository structure (`/gateway`, `/extension`, `/ml`, `/docs`), copied the supplied PRD to `docs/PRD.md` and the supplied roadmap to `MAST_BUILD_ROADMAP.md` exactly, added the root README, Python/Node/OS/secret-focused `.gitignore`, minimal GitHub Actions placeholder, and MIT license placeholder. Because Git does not track empty directories, `.gitkeep` files were added only to the intentionally empty `/gateway`, `/extension`, and `/ml` directories so the required structure survives a fresh clone. The MIT copyright-holder text is provisional and should be confirmed later. No gateway, extension, ML, or CI implementation was added; Block 2 is now the next block. |
-| 2 | September 26, 2026 | Added SQLAlchemy 2 models and PostgreSQL-compatible Alembic migration for `User`, `Session`, `Interaction`, `MasteryState`, and `Subscription`, root Alembic configuration, local PostgreSQL Compose service, requirements, DB engine/session dependency, and schema/import tests. PRD §14 fields are represented; UUID primary keys and JSON columns model IDs, device/client metadata, and `kc_ids[]`; uniqueness constraints enforce provider identity, per-user KC state, and one subscription per user. Validation: `pytest -q` reported 2 passed and 1 skipped; the skipped test provisions a disposable PostgreSQL database and was skipped because Docker and a local PostgreSQL service were unavailable. PostgreSQL offline DDL generation succeeded with `PostgresqlImpl`. Deviation: live-Postgres execution of the migration could not be confirmed in this environment, so the next session must pass the explicit PostgreSQL gate in its prompt before Block 3 work. |
+| 2 | September 26, 2026 | Added SQLAlchemy 2 models and PostgreSQL-compatible Alembic migration for `User`, `Session`, `Interaction`, `MasteryState`, and `Subscription`, root Alembic configuration, local PostgreSQL Compose service, requirements, DB engine/session dependency, and schema/import tests. PRD §14 fields are represented; UUID primary keys and JSON columns model IDs, device/client metadata, and `kc_ids[]`; uniqueness constraints enforce provider identity, per-user KC state, and one subscription per user. Initial SQLite tests passed; after Docker became available, the fresh-PostgreSQL migration integration test passed and `alembic upgrade head` created all five tables in the Compose database. |
+| 3 | September 26, 2026 | Added FastAPI Gateway app/configuration, `/v1/health`, GitHub `/user` token verification and create-on-first-signin, signed short-lived access and refresh JWTs, refresh and protected identity routes, and JSON request logging with request ID, authenticated user ID, method, path, status, and latency only. Added mocked provider/auth tests. Validation: full suite with the PostgreSQL integration test enabled reported 9 passed, 0 skipped; Uvicorn started with the Compose DB URL and `/v1/health` returned 200. Deviation: added `/v1/auth/me` and `/v1/auth/refresh` as the smallest useful surfaces to exercise access-token verification and make the issued refresh token usable. GitHub/provider tokens are neither persisted nor included in request logs. |
+| 4 | September 26, 2026 | Repository inspection found only `ml/.gitkeep`; no classifier/DKT source, trained weights, original 30-KC mapping, training/session corpus, or holdout data were supplied. Added a deterministic synthetic bootstrap pipeline under `ml/export/` that creates eight placeholder text-error classes and 30 generic KC IDs, uses BKT-style `p_slip=0.02`/`p_guess=0.05`, clustered/prerequisite-aware sampling, 200 simulated interactions per student, hidden size 256, embedding size 64, and two LSTM layers; exports classifier and DKT ONNX plus clearly named synthetic native artifacts and provenance metadata under `artifacts/synthetic/`. Added Python determinism/schema tests, Node `onnxruntime-node` smoke test, package manifest/lock, and DKT state-format documentation. Validation: full repository suite with PostgreSQL integration enabled: 12 passed, 0 skipped; Node smoke passed with 8 class scores and DKT output `[1, 3, 30]` plus `[2, 1, 256]` hidden/cell states. No Val AUC or F1-macro evaluation was possible because no real holdout set or trained research weights exist; no benchmark score is claimed. Deviation/size: generated a reproducible synthetic scaffold rather than claiming to retrain the unavailable research models. Artifacts must be replaced with the supplied real models/data before any product or learning-quality claims. |
 
 ---
 
@@ -126,10 +128,10 @@ If a block can't finish inside budget: commit only what's genuinely complete and
 | # | Block | Status |
 |---|---|---|
 | 1 | Repo Bootstrap & Conventions | ✅ Complete |
-| 2 | Database Schema & Persistence Layer | ✅ Implemented; live PostgreSQL gate pending |
-| 3 | Gateway Service Skeleton + Auth | ➡️ Next, after Block-2 PostgreSQL gate |
-| 4 | Local ML Export Pipeline (ONNX) | ⬜ Not started |
-| 5 | Extension Scaffold + Local Inference | ⬜ Not started |
+| 2 | Database Schema & Persistence Layer | ✅ Complete; live PostgreSQL gate passed |
+| 3 | Gateway Service Skeleton + Auth | ✅ Complete |
+| 4 | Local ML Export Pipeline (ONNX) | ✅ Complete; synthetic bootstrap only, research benchmarks unverified |
+| 5 | Extension Scaffold + Local Inference | ➡️ Next |
 | 6 | Local Embeddings & Mastery-Gated Retrieval | ⬜ Not started |
 | 7 | Extension Auth Flow + API Client + BYOK | ⬜ Not started |
 | 8 | Gateway Socratic Generation Chain | ⬜ Not started |
