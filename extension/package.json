@@ -1,5 +1,6 @@
 {
   "name": "mast",
+  "type": "module",
   "displayName": "MAST",
   "description": "Local machine-learning error classification and mastery tracking for MAST.",
   "version": "0.1.0",
@@ -40,10 +41,11 @@
   "scripts": {
     "compile": "tsc -p .",
     "typecheck": "tsc -p . --noEmit",
-    "test": "npm run compile && node --test out/test/inference.test.js",
+    "test": "npm run compile && node --test out/test/inference.test.js out/test/retrieval.test.js",
     "test:latency": "npm run compile && node --test out/test/inference.test.js"
   },
   "dependencies": {
+    "@xenova/transformers": "^2.17.2",
     "onnxruntime-node": "^1.30.0"
   },
   "devDependencies": {

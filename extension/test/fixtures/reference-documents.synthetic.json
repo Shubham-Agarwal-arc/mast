@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "provenance": "synthetic_test_fixture",
+  "documents": [
+    {
+      "id": "synthetic-kc00-foundation",
+      "kcId": "KC_00",
+      "difficulty": 0.2,
+      "text": "Synthetic test fixture: reason about basic array shapes before combining tensors."
+    },
+    {
+      "id": "synthetic-kc00-intermediate",
+      "kcId": "KC_00",
+      "difficulty": 0.55,
+      "text": "Synthetic test fixture: compare broadcast dimensions from the trailing axes."
+    },
+    {
+      "id": "synthetic-kc00-advanced",
+      "kcId": "KC_00",
+      "difficulty": 0.9,
+      "text": "Synthetic test fixture: derive a batched broadcasting contract across three tensors."
+    },
+    {
+      "id": "synthetic-kc01-basic",
+      "kcId": "KC_01",
+      "difficulty": 0.3,
+      "text": "Synthetic test fixture: inspect whether a tensor uses floating point values."
+    },
+    {
+      "id": "synthetic-kc01-advanced",
+      "kcId": "KC_01",
+      "difficulty": 0.8,
+      "text": "Synthetic test fixture: reason about dtype promotion across mixed precision operations."
+    },
+    {
+      "id": "synthetic-kc02-middle",
+      "kcId": "KC_02",
+      "difficulty": 0.6,
+      "text": "Synthetic test fixture: inspect how a transformed feature changes validation behavior."
+    }
+  ]
+}

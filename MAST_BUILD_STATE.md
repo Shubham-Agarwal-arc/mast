@@ -4,17 +4,17 @@
 | | |
 |---|---|
 | Last updated | September 27, 2026 |
-| Updated by | Build session (Block 5) |
+| Updated by | Build session (Block 6) |
 | Repo | **https://github.com/Shubham-Agarwal-arc/mast** |
 
 ---
 
 ## ⚡ Quick Status
 
-- **Blocks complete:** 5 / 16
-- **Current block:** Block 6 — Local Embeddings & Mastery-Gated Retrieval — **NEXT**
-- **Last known-good state:** Blocks 2–5 — PostgreSQL migration, Gateway auth/health, synthetic ONNX export, and offline TypeScript inference pass
-- **Blockers:** Original classifier/DKT weights, original 30-KC taxonomy, source retrieval corpus, training/session corpus, and held-out evaluation data were not present in the repository. Block 4 artifacts remain synthetic scaffolding; PRD model-quality benchmarks are unverified and must not be attributed to them.
+- **Blocks complete:** 6 / 16 (retrieval pipeline and offline validation complete; import of the original reference corpus remains blocked on source material)
+- **Current block:** Block 7 — Extension Auth Flow + Gateway API Client + BYOK — **NEXT**
+- **Last known-good state:** Blocks 2–6 — PostgreSQL migration, Gateway auth/health, synthetic ONNX inference, and local MiniLM retrieval pass
+- **Blockers:** Original classifier/DKT weights, original 30-KC taxonomy, prototype ChromaDB corpus and its difficulty metadata, training/session corpus, and held-out evaluation data were not present. Block 4 artifacts and the Block 6 retrieval fixture are synthetic; model-quality and production-corpus claims remain unverified.
 
 ---
 
@@ -26,76 +26,70 @@
 
 ---
 
-## ▶️ Copy This Into a New Session to Run Block 6
+## ▶️ Copy This Into a New Session to Run Block 7
 
 Attach `MAST_BUILD_ROADMAP.md`, `MAST_BUILD_STATE.md` (this file),
-`docs/PRD.md`, the current `/ml/` and `/extension/` contents,
-`artifacts/synthetic/`, and `requirements.txt`, then paste:
+`docs/PRD.md`, current `/extension/` and `/gateway/app/` contents,
+`requirements.txt`, and `docker-compose.yml`, then paste:
 
 ```
-I'm building MAST. This is Block 6 of 16 — Local Embeddings & Mastery-Gated
-Retrieval — per the attached MAST_BUILD_ROADMAP.md. My repo is
+I'm building MAST. This is Block 7 of 16 — Extension Auth Flow + Gateway API
+Client + BYOK — per the attached MAST_BUILD_ROADMAP.md. My repo is
 https://github.com/Shubham-Agarwal-arc/mast.
 
-Do exactly this, nothing from Block 7 onward. Generate every file as a
+Do exactly this, nothing from Block 8 onward. Generate every file as a
 real file I can download — do not run any git command yourself (no
 `git init`, `add`, `commit`, `push`, `clone`, or `pull`). I'll run
 whatever git commands you give me on my own machine.
 
 1. Read MAST_BUILD_STATE.md in full first, then MAST_BUILD_ROADMAP.md,
-   `docs/PRD.md`, the current `/ml/` and `/extension/` contents, and any
-   reference-document artifacts. Sanity-check that the attachments match
-   the state file before changing anything. Preserve Block 4's warning:
-   the ONNX classifier and DKT are synthetic scaffolding, not research
-   models and not validated for accuracy.
-2. Inspect the repository for the prototype's original ChromaDB documents,
-   source text, metadata, KC mappings, and difficulty values. Do not assume
-   the source corpus exists. If it is absent, do not invent or present
-   replacement text as original MAST reference content; use only a small,
-   clearly labelled synthetic fixture for algorithm tests and record that
-   production corpus import remains blocked on source data.
-3. Implement only Block 6 from the roadmap:
-   - Port available reference documents to a bundled, portable format with
-     stable document IDs, KC association, difficulty, and text.
-   - Add local all-MiniLM-L6-v2 embeddings using `@xenova/transformers`.
-     Keep model loading local/offline after dependencies are installed; do
-     not add Gateway/server retrieval or runtime network downloads.
-   - Add a lightweight local vector index and cosine-similarity search.
-   - Apply the exact ceiling `0.4 + mastery * 0.6`, then rerank eligible
-     documents by similarity and difficulty proximity as specified by
-     PRD §7.2 / FR-E2.
-   - Integrate only with the Block-5 local inference interfaces as needed
-     to obtain mastery values. Do not add chat or webview UI.
-4. Add focused tests proving ceiling filtering and ranking at low, middle,
-   and high mastery levels, plus deterministic vector-index behavior using
-   local fixtures. Tests must not make network calls. Label fixtures as
-   synthetic when the source corpus is unavailable.
-5. Validate Block 6's Definition of Done from MAST_BUILD_ROADMAP.md:
-   - Retrieval returns correctly filtered and ranked results across a
-     spread of mastery levels.
-   - Confirm inference/index lookup works with network access disabled.
-   - Measure local query latency and report it against the approximate
-     80ms prototype reference without claiming equivalence if the original
-     corpus/model environment is unavailable.
-   - Tests and TypeScript checks pass.
-6. Update MAST_BUILD_STATE.md as one of the generated files: record Block 6
-   results, deviations, and whether original corpus content was available;
-   preserve Blocks 2–5 results and the synthetic model warning; then write
-   Block 7's full session-ready prompt in the "Copy This Into a New Session"
-   section in this format.
-7. Give me every generated/changed file, then the exact Git Bash commands
+   `docs/PRD.md`, the current `/extension/` and `/gateway/app/` contents,
+   and the attached Block-2 database files. Sanity-check that attachments
+   match the state file before changing anything. Preserve the Block-4
+   synthetic model warning and the Block-6 note that original corpus data
+   was unavailable.
+2. Implement only Block 7 from the roadmap:
+   - Implement GitHub sign-in using VS Code's built-in Authentication API.
+     Request only the scopes needed for identity, then exchange the provider
+     access token with the existing Gateway `POST /v1/auth/github` endpoint.
+   - Add a typed Gateway API client configured with a server base URL from
+     extension settings. The token-exchange payload and response must match
+     the existing Gateway contract; do not modify Gateway code in this
+     block.
+   - Store MAST access/refresh tokens only with VS Code `SecretStorage`.
+     Do not use `globalState`, settings JSON, plaintext files, logs, or
+     source control for credentials.
+   - Add `MAST: Configure API Key` and `MAST: Clear API Key` commands using
+     a masked input and `SecretStorage`. The BYOK key must never be sent to
+     the MAST Gateway. Add an explicit Managed Cloud vs BYOK mode selector
+     that later generation blocks can use.
+3. Add focused tests with mocked VS Code authentication, Gateway transport,
+   and SecretStorage proving sign-in/exchange, access and refresh token
+   persistence, BYOK set/read/clear, and mode selection. Do not make real
+   network calls or require real credentials in automated tests.
+4. Validate Block 7's Definition of Done from MAST_BUILD_ROADMAP.md:
+   - TypeScript checks and tests pass.
+   - Manually verify sign-in against the running local Block-3 Gateway when
+     available; clearly distinguish mocked tests from this manual check.
+   - Verify no BYOK key is written to plaintext or transmitted to MAST.
+   - Preserve Block 6's local inference/retrieval behavior and its offline
+     tests; do not add chat functionality.
+5. Update MAST_BUILD_STATE.md as one of the generated files: record Block 7
+   results and deviations, preserve Blocks 2–6 results and both synthetic
+   model/corpus limitations, then write Block 8's full session-ready prompt
+   in the "Copy This Into a New Session" section in this format.
+6. Give me every generated/changed file, then the exact Git Bash commands
    to add, commit, and push with a clear conventional commit message. Do
    not run any git command yourself.
-8. Report what shipped, validation and latency results, the exact Block 7
-   prompt, and any remaining source-data blocker.
+7. Report what shipped, test and manual sign-in results, the exact Block 8
+   prompt, and any remaining blocker.
 
-Out of scope for Block 6: Gateway retrieval, chat, UI, billing, auth,
-taxonomy/model retraining, changes to Block 4 synthetic model weights, and
-anything from Block 7 onward.
+Out of scope for Block 7: Gateway changes, Google OAuth, chat/LLM calls,
+embeddings/retrieval changes, billing, and anything from Block 8 onward.
 
-Stay strictly inside Block 6. If the original document corpus is absent,
-keep synthetic fixtures clearly labelled and record the production corpus
-blocker instead of fabricating source material.
+Stay strictly inside Block 7. If VS Code authentication or SecretStorage
+cannot be exercised outside the Extension Host, provide mocks for automated
+tests and clearly document the manual validation still required.
 ```
 
 ## ✅ What's Done
@@ -109,6 +103,7 @@ Each entry records the block, date, factual summary, and any deviation from the 
 | 3 | September 26, 2026 | Added FastAPI Gateway app/configuration, `/v1/health`, GitHub `/user` token verification and create-on-first-signin, signed short-lived access and refresh JWTs, refresh and protected identity routes, and JSON request logging with request ID, authenticated user ID, method, path, status, and latency only. Added mocked provider/auth tests. Validation: full suite with the PostgreSQL integration test enabled reported 9 passed, 0 skipped; Uvicorn started with the Compose DB URL and `/v1/health` returned 200. Deviation: added `/v1/auth/me` and `/v1/auth/refresh` as the smallest useful surfaces to exercise access-token verification and make the issued refresh token usable. GitHub/provider tokens are neither persisted nor included in request logs. |
 | 4 | September 26, 2026 | Repository inspection found only `ml/.gitkeep`; no classifier/DKT source, trained weights, original 30-KC mapping, training/session corpus, or holdout data were supplied. Added a deterministic synthetic bootstrap pipeline under `ml/export/` that creates eight placeholder text-error classes and 30 generic KC IDs, uses BKT-style `p_slip=0.02`/`p_guess=0.05`, clustered/prerequisite-aware sampling, 200 simulated interactions per student, hidden size 256, embedding size 64, and two LSTM layers; exports classifier and DKT ONNX plus clearly named synthetic native artifacts and provenance metadata under `artifacts/synthetic/`. Added Python determinism/schema tests, Node `onnxruntime-node` smoke test, package manifest/lock, and DKT state-format documentation. Validation: full repository suite with PostgreSQL integration enabled: 12 passed, 0 skipped; Node smoke passed with 8 class scores and DKT output `[1, 3, 30]` plus `[2, 1, 256]` hidden/cell states. No Val AUC or F1-macro evaluation was possible because no real holdout set or trained research weights exist; no benchmark score is claimed. Deviation/size: generated a reproducible synthetic scaffold rather than claiming to retrain the unavailable research models. Artifacts must be replaced with the supplied real models/data before any product or learning-quality claims. |
 | 5 | September 27, 2026 | Added a VS Code extension manifest/TypeScript scaffold, local `onnxruntime-node` adapter resolving models from the existing repo-root `artifacts/synthetic/` directory without copying them, classifier labels/scores, DKT one-interaction updates, strict graph name/shape checks, and explicit Base64 little-endian float32 hidden-state persistence in `globalState`. Added `MAST: Classify Python Error` and `MAST: Update Mastery From Interaction` commands; classifier input and inference remain local. Offline tests disable `fetch`, cover path resolution, eight labels/confidence, 30 KC outputs, state serialization/version validation, and warm classifier latency. Validation: `npm run typecheck` passed; `npm test` passed 4/4 with no network; latest warm classifier measurement was median 0.109ms / p95 3.632ms over 100 calls. Full repository Python suite remained green at 12 passed with the PostgreSQL integration enabled. Deviation: the extension resolves repo-root synthetic assets for development; Marketplace packaging of assets outside `/extension/` remains Block 14 work. All inference quality remains unvalidated because Block 4 artifacts are synthetic. |
+| 6 | September 27, 2026 | Inspected the repository and found no prototype ChromaDB documents, source text, original KC mapping, or difficulty metadata. Added a versioned portable corpus schema with an empty `source_not_provided` production corpus, import/validation support, a local deterministic cosine vector index, the exact per-KC ceiling `0.4 + mastery * 0.6`, and an explicit difficulty-proximity rerank score (`0.8 * cosine + 0.2 * (1 - abs(document difficulty - KC mastery))`; the PRD names both ranking signals but gives no weight). Bundled the pinned `Xenova/all-MiniLM-L6-v2` INT8 ONNX model and tokenizer/config under `extension/models/` (upstream revision `751bff37182d3f1213fa05d7196b954e230abad9`, Apache-2.0; verified model SHA-256). Added `@xenova/transformers` with remote models disabled and a clearly synthetic test-only corpus. Validation: TypeScript check passed; `npm test` passed 11/11 with global `fetch` disabled, covering low/mid/high mastery filtering, ranking, deterministic index behavior, empty-corpus behavior, actual local MiniLM embedding and retrieval. Latest local test-fixture query latency was median 2.844ms / p95 3.599ms over 30 warm queries; this small synthetic fixture is not comparable to the prototype's full corpus benchmark. Deviation/blocker: production import of the original reference corpus remains blocked until its source documents and metadata are provided; no substitute is presented as original MAST content. Block 4's synthetic classifier/DKT caveat and unverified accuracy claims remain in force. |
 
 ---
 
@@ -140,9 +135,8 @@ If a block can't finish inside budget: commit only what's genuinely complete and
 | 3 | Gateway Service Skeleton + Auth | ✅ Complete |
 | 4 | Local ML Export Pipeline (ONNX) | ✅ Complete; synthetic bootstrap only, research benchmarks unverified |
 | 5 | Extension Scaffold + Local Inference | ✅ Complete; synthetic model interfaces only |
-| 6 | Local Embeddings & Mastery-Gated Retrieval | ➡️ Next |
-| 6 | Local Embeddings & Mastery-Gated Retrieval | ⬜ Not started |
-| 7 | Extension Auth Flow + API Client + BYOK | ⬜ Not started |
+| 6 | Local Embeddings & Mastery-Gated Retrieval | ✅ Complete; original reference corpus import pending |
+| 7 | Extension Auth Flow + API Client + BYOK | ➡️ Next |
 | 8 | Gateway Socratic Generation Chain | ⬜ Not started |
 | 9 | Constitutional Verify + Regen + Quota | ⬜ Not started |
 | 10 | Chat Panel Webview | ⬜ Not started |
