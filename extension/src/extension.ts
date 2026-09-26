@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import path from "node:path";
 
 import { ExtensionAuthService } from "./auth/authService.js";
 import { AuthModeService } from "./auth/authMode.js";
@@ -6,10 +7,14 @@ import { ByokSecretStore } from "./auth/byokStore.js";
 import { GatewayApiClient } from "./auth/gatewayClient.js";
 import { MastTokenStore } from "./auth/tokenStore.js";
 import type { AuthMode } from "./auth/types.js";
+import { GatewayApiError } from "./auth/gatewayClient.js";
 import { VscodeGitHubTokenProvider } from "./auth/vscodeGitHubTokenProvider.js";
+import { ChatWorkflow } from "./chat/chatWorkflow.js";
+import { showChatPanel } from "./chat/chatPanel.js";
 import { LocalInference } from "./inference/localInference.js";
 import { resolveModelPaths } from "./inference/modelPaths.js";
 import type { SerializedDktState } from "./inference/types.js";
+import { LocalRetrieval } from "./retrieval/localRetrieval.js";
 
 const dktStateKey = "mast.dktHiddenState.v1";
 
@@ -18,6 +23,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const paths = resolveModelPaths(context.extensionPath, configuredDirectory);
   const inference = await LocalInference.load(paths);
   context.subscriptions.push({ dispose: () => void inference.dispose() });
+  const retrieval = await LocalRetrieval.load(
+    context.extensionPath,
+    path.join(context.extensionPath, "data", "reference-documents.v1.json"),
+  );
+  context.subscriptions.push({ dispose: () => void retrieval.dispose() });
   const tokenStore = new MastTokenStore(context.secrets);
   const byokStore = new ByokSecretStore(context.secrets);
   const modePreferences = vscode.workspace.getConfiguration("mast");
@@ -35,8 +45,43 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       new GatewayApiClient(vscode.workspace.getConfiguration("mast").get("gatewayUrl", "http://127.0.0.1:8000")),
       tokenStore,
     );
+  const createGatewayClient = () =>
+    new GatewayApiClient(vscode.workspace.getConfiguration("mast").get("gatewayUrl", "http://127.0.0.1:8000"));
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("mast.openChat", () => {
+      const workflow = new ChatWorkflow({
+        inference,
+        retrieval,
+        tokens: {
+          get: async () => {
+            const stored = await tokenStore.get();
+            if (stored) {
+              return stored;
+            }
+            await createAuthService().signInWithGitHub();
+            return tokenStore.get();
+          },
+        },
+        gateway: {
+          chat: async (accessToken, payload) => {
+            const gateway = createGatewayClient();
+            try {
+              return await gateway.chat(accessToken, payload);
+            } catch (error) {
+              if (!(error instanceof GatewayApiError) || error.statusCode !== 401) {
+                throw error;
+              }
+              const refreshed = await createAuthService().refresh();
+              return gateway.chat(refreshed.access_token, payload);
+            }
+          },
+        },
+        getDktState: () => context.globalState.get<SerializedDktState>(dktStateKey),
+        saveDktState: (state) => context.globalState.update(dktStateKey, state),
+      });
+      showChatPanel(context, workflow);
+    }),
     vscode.commands.registerCommand("mast.classifyError", async () => {
       const errorText = await vscode.window.showInputBox({
         prompt: "Paste a Python error to classify locally",

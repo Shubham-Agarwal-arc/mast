@@ -2,6 +2,19 @@ import type { AuthGateway, TokenPair } from "./types.js";
 
 export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
+export interface GatewayChatRequest {
+  message: string;
+  error_text?: string;
+  error_category?: string;
+  mastery_by_kc: Record<string, number>;
+  retrieved_context: string[];
+  hint_depth: number;
+}
+
+export interface GatewayChatResponse {
+  response: string;
+}
+
 export class GatewayApiError extends Error {
   constructor(
     message: string,
@@ -72,6 +85,50 @@ export class GatewayApiClient implements AuthGateway {
       throw new GatewayApiError("No MAST refresh token is stored");
     }
     return this.postTokenPair("/v1/auth/refresh", { refresh_token: refreshToken });
+  }
+
+  async chat(accessToken: string, payload: GatewayChatRequest): Promise<GatewayChatResponse> {
+    if (!accessToken.trim()) {
+      throw new GatewayApiError("Sign in with GitHub before starting a MAST chat");
+    }
+    let response: Response;
+    try {
+      response = await this.fetcher(`${this.baseUrl}/v1/chat`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      throw new GatewayApiError("Could not reach the MAST Gateway");
+    }
+    if (!response.ok) {
+      const message = response.status === 429
+        ? "MAST chat quota is temporarily unavailable. Your draft is still here."
+        : response.status === 401
+          ? "Your MAST sign-in has expired. Refresh your sign-in and try again."
+          : "MAST could not complete this chat. Your draft is still here.";
+      throw new GatewayApiError(message, response.status);
+    }
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw new GatewayApiError("MAST Gateway returned an invalid chat response", response.status);
+    }
+    if (
+      typeof body !== "object" ||
+      body === null ||
+      typeof (body as Partial<GatewayChatResponse>).response !== "string" ||
+      !(body as Partial<GatewayChatResponse>).response?.trim()
+    ) {
+      throw new GatewayApiError("MAST Gateway returned an invalid chat response", response.status);
+    }
+    return { response: (body as GatewayChatResponse).response };
   }
 
   private async postTokenPair(path: string, payload: Record<string, string>): Promise<TokenPair> {
