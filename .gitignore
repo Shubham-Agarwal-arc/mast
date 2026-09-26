@@ -25,6 +25,7 @@ poetry.lock
 
 # Node / JavaScript / TypeScript
 node_modules/
+extension/out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

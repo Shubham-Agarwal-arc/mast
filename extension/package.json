@@ -1,0 +1,57 @@
+{
+  "name": "mast",
+  "displayName": "MAST",
+  "description": "Local machine-learning error classification and mastery tracking for MAST.",
+  "version": "0.1.0",
+  "publisher": "mast",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Machine Learning"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onCommand:mast.classifyError",
+    "onCommand:mast.updateMastery"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "mast.classifyError",
+        "title": "MAST: Classify Python Error"
+      },
+      {
+        "command": "mast.updateMastery",
+        "title": "MAST: Update Mastery From Interaction"
+      }
+    ],
+    "configuration": {
+      "title": "MAST",
+      "properties": {
+        "mast.modelDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "Optional local directory containing the MAST ONNX files and metadata.json. Empty uses the repository's artifacts/synthetic directory."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "npm run compile && node --test out/test/inference.test.js",
+    "test:latency": "npm run compile && node --test out/test/inference.test.js"
+  },
+  "dependencies": {
+    "onnxruntime-node": "^1.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.9.0"
+  },
+  "allowScripts": {
+    "onnxruntime-node@1.30.0": true
+  }
+}
