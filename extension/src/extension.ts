@@ -1,5 +1,12 @@
 import * as vscode from "vscode";
 
+import { ExtensionAuthService } from "./auth/authService.js";
+import { AuthModeService } from "./auth/authMode.js";
+import { ByokSecretStore } from "./auth/byokStore.js";
+import { GatewayApiClient } from "./auth/gatewayClient.js";
+import { MastTokenStore } from "./auth/tokenStore.js";
+import type { AuthMode } from "./auth/types.js";
+import { VscodeGitHubTokenProvider } from "./auth/vscodeGitHubTokenProvider.js";
 import { LocalInference } from "./inference/localInference.js";
 import { resolveModelPaths } from "./inference/modelPaths.js";
 import type { SerializedDktState } from "./inference/types.js";
@@ -11,6 +18,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const paths = resolveModelPaths(context.extensionPath, configuredDirectory);
   const inference = await LocalInference.load(paths);
   context.subscriptions.push({ dispose: () => void inference.dispose() });
+  const tokenStore = new MastTokenStore(context.secrets);
+  const byokStore = new ByokSecretStore(context.secrets);
+  const modePreferences = vscode.workspace.getConfiguration("mast");
+  const authMode = new AuthModeService(
+    {
+      get: () => modePreferences.get<unknown>("authMode", "managed"),
+      set: async (mode: AuthMode) => modePreferences.update("authMode", mode, vscode.ConfigurationTarget.Global),
+    },
+    byokStore,
+  );
+  const githubTokenProvider = new VscodeGitHubTokenProvider(vscode.authentication);
+  const createAuthService = () =>
+    new ExtensionAuthService(
+      githubTokenProvider,
+      new GatewayApiClient(vscode.workspace.getConfiguration("mast").get("gatewayUrl", "http://127.0.0.1:8000")),
+      tokenStore,
+    );
 
   context.subscriptions.push(
     vscode.commands.registerCommand("mast.classifyError", async () => {
@@ -60,6 +84,74 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown local inference error";
         await vscode.window.showErrorMessage(`MAST could not update mastery: ${message}`);
+      }
+    }),
+    vscode.commands.registerCommand("mast.signIn", async () => {
+      try {
+        const tokens = await createAuthService().signInWithGitHub();
+        if (tokens) {
+          await vscode.window.showInformationMessage("Signed in to MAST with GitHub.");
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown sign-in error";
+        await vscode.window.showErrorMessage(`MAST sign-in failed: ${message}`);
+      }
+    }),
+    vscode.commands.registerCommand("mast.refreshSession", async () => {
+      try {
+        await createAuthService().refresh();
+        await vscode.window.showInformationMessage("MAST sign-in refreshed.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown refresh error";
+        await vscode.window.showErrorMessage(`MAST refresh failed: ${message}`);
+      }
+    }),
+    vscode.commands.registerCommand("mast.signOut", async () => {
+      await tokenStore.clear();
+      await vscode.window.showInformationMessage("MAST credentials cleared from SecretStorage.");
+    }),
+    vscode.commands.registerCommand("mast.configureApiKey", async () => {
+      const apiKey = await vscode.window.showInputBox({
+        prompt: "Enter your provider API key. It will be stored in VS Code SecretStorage.",
+        password: true,
+        ignoreFocusOut: true,
+      });
+      if (apiKey === undefined) {
+        return;
+      }
+      try {
+        await byokStore.setApiKey(apiKey);
+        await authMode.setMode("byok");
+        await vscode.window.showInformationMessage("Provider key stored in SecretStorage; BYOK mode selected.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown API key storage error";
+        await vscode.window.showErrorMessage(`MAST could not store the provider key: ${message}`);
+      }
+    }),
+    vscode.commands.registerCommand("mast.clearApiKey", async () => {
+      await byokStore.clearApiKey();
+      if (authMode.getMode() === "byok") {
+        await authMode.setMode("managed");
+      }
+      await vscode.window.showInformationMessage("Provider key cleared from SecretStorage; Managed mode selected.");
+    }),
+    vscode.commands.registerCommand("mast.selectAuthMode", async () => {
+      const choices = [
+        { label: "Managed Cloud", description: "Use MAST-managed credentials", value: "managed" as const },
+        { label: "Bring Your Own Key", description: "Use a provider key from SecretStorage", value: "byok" as const },
+      ];
+      const selection = await vscode.window.showQuickPick(choices, {
+        placeHolder: `Current mode: ${authMode.getMode()}`,
+      });
+      if (!selection) {
+        return;
+      }
+      try {
+        await authMode.setMode(selection.value);
+        await vscode.window.showInformationMessage(`MAST authentication mode set to ${selection.label}.`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown mode selection error";
+        await vscode.window.showErrorMessage(message);
       }
     }),
   );

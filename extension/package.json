@@ -25,6 +25,30 @@
       {
         "command": "mast.updateMastery",
         "title": "MAST: Update Mastery From Interaction"
+      },
+      {
+        "command": "mast.signIn",
+        "title": "MAST: Sign In with GitHub"
+      },
+      {
+        "command": "mast.refreshSession",
+        "title": "MAST: Refresh Sign-In"
+      },
+      {
+        "command": "mast.signOut",
+        "title": "MAST: Sign Out"
+      },
+      {
+        "command": "mast.configureApiKey",
+        "title": "MAST: Configure API Key"
+      },
+      {
+        "command": "mast.clearApiKey",
+        "title": "MAST: Clear API Key"
+      },
+      {
+        "command": "mast.selectAuthMode",
+        "title": "MAST: Select Authentication Mode"
       }
     ],
     "configuration": {
@@ -34,6 +58,24 @@
           "type": "string",
           "default": "",
           "description": "Optional local directory containing the MAST ONNX files and metadata.json. Empty uses the repository's artifacts/synthetic directory."
+        },
+        "mast.gatewayUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "description": "MAST Gateway base URL. Remote URLs must use HTTPS; HTTP is accepted only for localhost development."
+        },
+        "mast.authMode": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "byok"
+          ],
+          "enumDescriptions": [
+            "Use MAST-managed cloud credentials.",
+            "Use the provider key stored in VS Code SecretStorage."
+          ],
+          "default": "managed",
+          "description": "Credential mode for later MAST generation features. Block 7 does not send BYOK keys anywhere."
         }
       }
     }
@@ -41,7 +83,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "typecheck": "tsc -p . --noEmit",
-    "test": "npm run compile && node --test out/test/inference.test.js out/test/retrieval.test.js",
+    "test": "npm run compile && node --test out/test/auth.test.js out/test/inference.test.js out/test/retrieval.test.js",
     "test:latency": "npm run compile && node --test out/test/inference.test.js"
   },
   "dependencies": {
