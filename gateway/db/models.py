@@ -93,5 +93,6 @@ class Subscription(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     renews_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     provider_ref: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    last_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
 
     user: Mapped[User] = relationship(back_populates="subscription")

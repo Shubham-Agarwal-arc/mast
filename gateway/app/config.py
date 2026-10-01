@@ -16,6 +16,13 @@ class Settings:
     openai_model: str = "gpt-4o"
     chat_quota_limit: int | None = None
     chat_quota_window_seconds: int = 86_400
+    free_chat_quota_limit: int = 20
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_free_price_id: str = "price_free_placeholder"
+    stripe_pro_price_id: str = "price_pro_placeholder"
+    stripe_success_url: str = "https://mast.example.com/billing/success"
+    stripe_cancel_url: str = "https://mast.example.com/billing/cancel"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -37,6 +44,9 @@ class Settings:
             raise RuntimeError("MAST_CHAT_QUOTA_LIMIT must be positive when configured")
         if quota_window <= 0:
             raise RuntimeError("MAST_CHAT_QUOTA_WINDOW_SECONDS must be positive")
+        free_quota = int(os.getenv("MAST_FREE_CHAT_QUOTA_LIMIT", "20"))
+        if free_quota <= 0:
+            raise RuntimeError("MAST_FREE_CHAT_QUOTA_LIMIT must be positive")
 
         return cls(
             jwt_secret=secret,
@@ -51,4 +61,11 @@ class Settings:
             openai_model=os.getenv("MAST_OPENAI_MODEL", "gpt-4o"),
             chat_quota_limit=quota_limit,
             chat_quota_window_seconds=quota_window,
+            free_chat_quota_limit=free_quota,
+            stripe_secret_key=os.getenv("STRIPE_SECRET_KEY") or None,
+            stripe_webhook_secret=os.getenv("STRIPE_WEBHOOK_SECRET") or None,
+            stripe_free_price_id=os.getenv("STRIPE_FREE_PRICE_ID", "price_free_placeholder"),
+            stripe_pro_price_id=os.getenv("STRIPE_PRO_PRICE_ID", "price_pro_placeholder"),
+            stripe_success_url=os.getenv("STRIPE_SUCCESS_URL", "https://mast.example.com/billing/success"),
+            stripe_cancel_url=os.getenv("STRIPE_CANCEL_URL", "https://mast.example.com/billing/cancel"),
         )

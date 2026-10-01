@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from gateway.app.auth import router as auth_router
+from gateway.app.billing import router as billing_router
 from gateway.app.chat import router as chat_router
 from gateway.app.config import Settings
 from gateway.app.logging_config import configure_logging
@@ -15,6 +16,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.chat_quota_counter = ChatQuotaCounter(app.state.settings.chat_quota_window_seconds)
     app.add_middleware(RequestLoggingMiddleware)
     app.include_router(auth_router)
+    app.include_router(billing_router)
     app.include_router(chat_router)
 
     @app.get("/v1/health", tags=["health"])

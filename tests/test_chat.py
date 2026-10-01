@@ -19,14 +19,24 @@ from gateway.app.chat import (
 from gateway.app.config import Settings
 from gateway.app.main import create_app
 from gateway.app.quota import ChatQuotaCounter
+from gateway.db.database import get_db
+from gateway.app.quota import enforce_chat_quota
 
 
 def make_client(
-    *, authenticated: bool, chain=None, verifier=None, settings: Settings | None = None
+    *, authenticated: bool, chain=None, verifier=None, settings: Settings | None = None, use_real_quota: bool = False
 ) -> TestClient:
     app = create_app(settings or Settings(jwt_secret="test-only-secret-with-at-least-32-bytes"))
     if authenticated:
         app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id="test-user")
+        if not use_real_quota:
+            app.dependency_overrides[enforce_chat_quota] = lambda: SimpleNamespace(id="test-user")
+        else:
+            class EmptySubscriptionDb:
+                def scalar(self, _statement):
+                    return None
+
+            app.dependency_overrides[get_db] = lambda: EmptySubscriptionDb()
     if chain is not None:
         app.dependency_overrides[get_socratic_chain] = lambda: chain
     if verifier is None:
@@ -165,10 +175,10 @@ def test_chat_quota_blocks_before_a_second_generation() -> None:
     chain = RunnableLambda(lambda values: generated.append(values) or "What can you infer?")
     settings = Settings(
         jwt_secret="test-only-secret-with-at-least-32-bytes",
-        chat_quota_limit=1,
+        free_chat_quota_limit=1,
         chat_quota_window_seconds=60,
     )
-    with make_client(authenticated=True, chain=chain, settings=settings) as client:
+    with make_client(authenticated=True, chain=chain, settings=settings, use_real_quota=True) as client:
         first = client.post("/v1/chat", json=valid_chat_request())
         second = client.post("/v1/chat", json=valid_chat_request())
 

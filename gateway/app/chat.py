@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from gateway.app.config import Settings
 from gateway.app.dependencies import get_settings
 from gateway.app.auth import get_current_user
-from gateway.app.quota import ChatQuotaCounter, get_chat_quota_counter
+from gateway.app.quota import enforce_chat_quota
 from gateway.db.models import User
 
 
@@ -139,21 +139,6 @@ def get_constitutional_verifier(
             ) from exc
         request.app.state.constitutional_verifier = verifier
     return verifier
-
-
-def enforce_chat_quota(
-    current_user: User = Depends(get_current_user),
-    counter: ChatQuotaCounter = Depends(get_chat_quota_counter),
-    settings: Settings = Depends(get_settings),
-) -> User:
-    decision = counter.consume(str(current_user.id), settings.chat_quota_limit)
-    if not decision.allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Chat quota exceeded",
-            headers={"Retry-After": str(decision.retry_after_seconds)},
-        )
-    return current_user
 
 
 def _generate_candidate(chain: Runnable, inputs: dict[str, object], guidance: str) -> str:
