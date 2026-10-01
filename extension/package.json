@@ -19,6 +19,14 @@
         "title": "MAST: Open Chat"
       },
       {
+        "command": "mast.openKnowledgeMap",
+        "title": "MAST: Open Knowledge Map"
+      },
+      {
+        "command": "mast.runCode",
+        "title": "MAST: Run Python and Capture Error"
+      },
+      {
         "command": "mast.classifyError",
         "title": "MAST: Classify Python Error"
       },
@@ -76,6 +84,11 @@
           ],
           "default": "managed",
           "description": "Credential mode for later MAST generation features. Block 7 does not send BYOK keys anywhere."
+        },
+        "mast.pythonCommand": {
+          "type": "string",
+          "default": "python",
+          "description": "Python executable path used only by MAST: Run Python and Capture Error. It is launched without a shell."
         }
       }
     }
@@ -83,7 +96,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "typecheck": "tsc -p . --noEmit",
-    "test": "npm run compile && node --test out/test/auth.test.js out/test/chat.test.js out/test/inference.test.js out/test/retrieval.test.js",
+    "test": "npm run compile && node --test out/test/auth.test.js out/test/block11.test.js out/test/chat.test.js out/test/inference.test.js out/test/retrieval.test.js",
     "test:latency": "npm run compile && node --test out/test/inference.test.js"
   },
   "dependencies": {

@@ -76,6 +76,10 @@
     if (!message || typeof message !== "object") return;
     if (message.type === "pending") {
       setPending(true);
+    } else if (message.type === "capturedError" && typeof message.text === "string") {
+      errorMessage.hidden = true;
+      appendMessage("learner", message.text, "CAPTURED PYTHON ERROR");
+      setPending(true);
     } else if (message.type === "assistant" && typeof message.response === "string") {
       setPending(false);
       errorMessage.hidden = true;

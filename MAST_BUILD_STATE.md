@@ -3,18 +3,18 @@
 
 | | |
 |---|---|
-| Last updated | September 27, 2026 |
-| Updated by | Build session (Block 10) |
+| Last updated | October 1, 2026 |
+| Updated by | Build session (Block 11) |
 | Repo | **https://github.com/Shubham-Agarwal-arc/mast** |
 
 ---
 
 ## ⚡ Quick Status
 
-- **Blocks complete:** 10 / 16 (Block 10 implementation and mocked test coverage added; npm checks could not execute because Node.js is unavailable in this environment)
-- **Current block:** Block 11 — Knowledge Map Webview + Error Capture Command — **NEXT**
-- **Last known-good state:** Blocks 2–9 passed their recorded checks; Block 10 has no TypeScript editor diagnostics, but `npm run typecheck` and `npm test` still require execution in an environment with Node.js
-- **Blockers:** Node.js was not discoverable in PATH or common install locations, so extension typecheck/test execution is pending; a real Extension Host visual/manual pass is also pending. No Anthropic/OpenAI server credentials were configured, so no live-provider smoke call was made. Block 7's interactive GitHub sign-in against local Gateway also remains a manual Extension Host check. Original classifier/DKT weights, original 30-KC taxonomy, prototype ChromaDB corpus/difficulty metadata, training/session corpus, and held-out evaluation data remain unavailable; model quality and production retrieval content are unverified. The production reference corpus is empty, so resolved mastery updates occur only when local retrieval identifies a KC.
+- **Blocks complete:** 11 / 16 (Block 11 implementation and mocked test coverage added; extension npm checks remain pending because Node.js is unavailable in this environment)
+- **Current block:** Block 12 — Billing (Stripe) & Quota Enforcement — **NEXT**
+- **Last known-good state:** Blocks 2–9 passed their recorded checks; Blocks 10–11 have no TypeScript editor diagnostics, but `npm run typecheck` and `npm test` still require execution in an environment with Node.js
+- **Blockers:** Node.js was not discoverable in PATH or common install locations, so extension typecheck/test execution is pending; a real Extension Host visual/manual pass is also pending. No Anthropic/OpenAI server credentials were configured, so no live-provider smoke call was made. Block 7's interactive GitHub sign-in against local Gateway also remains a manual Extension Host check. Original classifier/DKT weights, original 30-KC taxonomy, prototype ChromaDB corpus/difficulty metadata, training/session corpus, and held-out evaluation data remain unavailable; model quality and production retrieval content are unverified. The production reference corpus is empty, and the original mastery thresholds/taxonomy were not supplied, so the Knowledge Map displays neutral bars and explicitly does not infer red/yellow/green bands. Resolved mastery updates occur only when local retrieval identifies a KC.
 
 ---
 
@@ -26,85 +26,81 @@
 
 ---
 
-## ▶️ Copy This Into a New Session to Run Block 11
+## ▶️ Copy This Into a New Session to Run Block 12
 
 Attach `MAST_BUILD_ROADMAP.md`, `MAST_BUILD_STATE.md` (this file),
-`docs/PRD.md`, current `/extension/src/` and `/extension/test/` contents,
-`extension/package.json`, Block 10 Chat Panel files/tests, local inference and
-retrieval modules, Gateway chat/auth contract and tests, and model/corpus
+`docs/PRD.md`, current `/gateway/app/` and `/gateway/db/` contents,
+`requirements.txt`, `docker-compose.yml`, Gateway tests, Block 9 quota code,
+Block 10–11 extension client/error contracts and tests, and model/corpus
 metadata, then paste:
 
 ```
-I'm building MAST. This is Block 11 of 16 — Knowledge Map Webview + Error
-Capture Command — per the
-attached MAST_BUILD_ROADMAP.md.
+I'm building MAST. This is Block 12 of 16 — Billing (Stripe) & Quota
+Enforcement — per the attached MAST_BUILD_ROADMAP.md.
 My repo is
 https://github.com/Shubham-Agarwal-arc/mast.
 
-Do exactly this, nothing from Block 10 onward. Generate every file as a
+Do exactly this, nothing from Block 13 onward. Generate every file as a
 real file I can download — do not run any git command yourself (no
 `git init`, `add`, `commit`, `push`, `clone`, or `pull`). I'll run
 whatever git commands you give me on my own machine.
 
 1. Read MAST_BUILD_STATE.md in full first, then MAST_BUILD_ROADMAP.md,
-   `docs/PRD.md`, the Block 10 Chat Panel/workflow and tests, extension
-   activation/manifest, local inference and retrieval APIs, and DKT state
-   format. Sanity-check these against the state file. Preserve the pending
+   `docs/PRD.md`, Gateway auth/config/chat/quota code and tests, database
+   models/migrations, and the Block 10–11 extension client/error contracts.
+   Sanity-check those files against the state file. Preserve the pending
    Node.js extension checks, manual Extension Host/sign-in checks, live
-   provider smoke check, and synthetic model/corpus limitations. Do not
-   claim Block 10 npm validation passed unless it is actually run.
-2. Implement only Block 11 from the roadmap:
-   - Add a Knowledge Map webview displaying all 30 KCs, mastery bars, and
-     red/yellow/green bands using the original threshold definitions if
-     available. If threshold evidence or real taxonomy is absent, do not
-     invent it; record the missing source and make the current synthetic
-     mapping limitation explicit in implementation/state.
-   - Add the `mast.runCode` command to execute the active Python file,
-     capture stderr, and feed errors through the existing Block 10 chat
-     workflow without starting a local server. Do not add another error
-     processing path.
-   - Reuse the existing local classifier, DKT persistence, mastery-gated
-     retrieval, Gateway client, authentication, and Chat Panel. Ensure
-     captured errors become a chat interaction and resolved feedback
-     updates the matching KC when one can be determined.
-   - Keep execution scoped to the active Python file/workspace and use
-     VS Code APIs with safe argument handling. Do not introduce shell
-     string concatenation, expose secrets, or log code/error content.
-   - Preserve Block 9 verification/quota and Block 10's `{ "response":
-     string }` contract. Do not add billing, telemetry dashboards, or
-     packaging.
-3. Add focused tests with mocked VS Code execution, local inference,
-   retrieval, Gateway transport, and storage. Cover Knowledge Map rendering
-   and threshold boundaries, safe active-file execution/error capture,
-   routing captured stderr through the existing chat flow, and mastery
-   updates. Tests must not make network calls or execute real processes.
-4. Validate Block 11's Definition of Done from MAST_BUILD_ROADMAP.md:
-   - A known mapped error updates the correct KC and expected color band.
-   - The full mocked/manual flow from buggy Python output through captured
-     stderr, Socratic question, Resolved, and visible mastery update works.
-   - Confirm tests use mocks and no test launches an uncontrolled process
-     or server; run extension typecheck/test and Gateway chat tests.
-   - Separately record which real Extension Host, sign-in, provider, and
-     cross-platform checks remain pending.
+   provider smoke check, synthetic model/corpus limitations, and the
+   missing original KC thresholds/taxonomy. Do not claim prior npm checks
+   passed unless they are actually run.
+2. Implement only Block 12 from the roadmap:
+   - Add server-side Stripe configuration with placeholder Free/Pro price
+     IDs; do not commit secrets or decide final pricing beyond the existing
+     PRD open question.
+   - Add authenticated `/v1/billing/checkout` for a hosted Checkout Session
+     and `/v1/billing/webhook` with signature verification. Keep provider
+     credentials server-side and return generic safe errors.
+   - Process subscription events idempotently and update the existing
+     `Subscription` record for the authenticated user. Cover checkout,
+     activation, cancellation, and renewal-state transitions needed by the
+     current schema.
+   - Replace Block 9's optional quota limit with durable Free/Pro policy
+     resolved from subscription state, without breaking authenticated
+     `/v1/chat`, constitutional verification, or `Retry-After` behavior.
+   - Preserve the in-progress extension chat session on quota exhaustion.
+     Add only the non-destructive upgrade signal/contract needed by the
+     existing Chat Panel; do not redesign its UI or add telemetry.
+3. Add focused mocked tests for Stripe checkout, webhook signature and
+   idempotency, subscription state changes, Free/Pro quota decisions,
+   quota exhaustion, safe error responses, and session preservation. Tests
+   must not call Stripe or an LLM provider and must not expose secrets.
+4. Validate Block 12's Definition of Done from MAST_BUILD_ROADMAP.md:
+   - A simulated webhook upgrades a test account and lifts its quota.
+   - Reaching the free cap returns the safe upgrade signal without losing
+     the current chat request/session state.
+   - Run the focused and full Gateway tests, with PostgreSQL integration if
+     available, and run extension tests only if Node.js is available.
+   - Separately record pending live Stripe, provider, sign-in, Extension
+     Host, and cross-platform checks.
 5. Update MAST_BUILD_STATE.md as one of the generated files: record Block
-   11 results/deviations, preserve Block 10's unrun npm validation if it
-   remains unresolved, prior validation, pending manual authentication/
-   provider checks, and synthetic model/corpus caveats; then write Block
-   12's full session-ready prompt in the "Copy This Into a New Session"
-   section in this format.
+   12 results/deviations, preserve Blocks 10–11's unrun npm validation and
+   manual checks, prior Gateway validation, and synthetic model/corpus and
+   missing-threshold caveats; then write Block 13's full session-ready
+   prompt in the "Copy This Into a New Session" section.
 6. Give me every generated/changed file, then the exact Git Bash commands
    to add, commit, and push with a clear conventional commit message. Do
    not run any git command yourself.
-7. Report what shipped, validation results, the exact Block 12 prompt, and
+7. Report what shipped, validation results, the exact Block 13 prompt, and
    every remaining blocker.
 
-Out of scope for Block 11: Stripe/billing, real subscription-tier quota
-policy, telemetry dashboards, packaging, instructor console, and anything
-from Block 12 onward.
+Out of scope for Block 12: telemetry dashboards, packaging, instructor
+console, model retraining, taxonomy/threshold invention, and anything from
+Block 13 onward.
 
-Stay strictly inside Block 11. If Node.js or a real Extension Host is not
-available, use editor diagnostics and mocked checks where possible, state
-which validations could not run, and keep manual checks explicitly pending.
+Stay strictly inside Block 12. If Node.js, Stripe credentials, or a real
+Extension Host are unavailable, use mocked Gateway checks and editor
+diagnostics where possible, state which validations could not run, and keep
+manual checks explicitly pending.
 ```
 
 ## ✅ What's Done
@@ -123,6 +119,7 @@ Each entry records the block, date, factual summary, and any deviation from the 
 | 8 | September 27, 2026 | Added server-side LangChain LCEL generation for authenticated `POST /v1/chat`, bounded request/response schemas, Socratic system instructions, server-only Anthropic/OpenAI provider selection and env configuration, and generic safe errors for missing providers or generation failures. No Block-9 verifier/regeneration, quota, billing, or extension UI was added. Tests use `FakeListChatModel`/Runnable mocks, prove the existing JWT dependency returns 401 when unauthenticated, provider selection comes from server settings, extra client provider fields and overlong context are rejected, and provider exception details do not reach responses. Validation: full PostgreSQL-enabled Python suite reported 19 passed, 0 skipped; no real provider credentials were configured and no live LLM call was made. Manual provider smoke remains pending. Existing Block-7 interactive sign-in check and Block-4/6 synthetic data limitations remain. |
 | 9 | September 27, 2026 | Added a server-selected constitutional classification chain after every generation candidate, explicit two-regeneration cap, Socratic regeneration guidance, and fail-closed behavior (generic 502) if the final candidate is still direct or verification fails. Added safe per-request constitutional outcome logs (request/interaction correlation ID, user ID, trigger flag, retry count, retry success, final verification status) without content, credentials, tokens, or provider exceptions. Added a thread-safe process-local fixed-window quota counter keyed by authenticated user, with optional server environment limits (`MAST_CHAT_QUOTA_LIMIT`, `MAST_CHAT_QUOTA_WINDOW_SECONDS`) and generic 429/Retry-After response; no Free/Pro policy, persistence, Redis, or billing was added. Validation: focused chat tests 14 passed; full Python suite 25 passed, 1 skipped, 39 warnings. All provider calls were mocked; no live-provider smoke call was made. Deviation: because no quota storage/service existed and tier enforcement is Block 12, the mechanism is process-local and its limit defaults to disabled while requests are counted. Block-7 interactive sign-in remains pending; Blocks 4–6 synthetic model/corpus and unavailable holdout-data limitations remain. |
 | 10 | September 27, 2026 | Added `MAST: Open Chat`, a secure Chat Panel webview with message thread, mastery/session badges, input, two category-aware follow-up suggestions, and Resolved action. Added local classifier/retrieval-to-Gateway workflow using the SecretStorage bearer token, safe response validation/errors, one token refresh retry on 401, follow-up context reuse, and DKT updates for the top retrieved KC. Added focused mocked Gateway/workflow/message/CSP/draft-preservation tests. Editor diagnostics reported no errors; npm typecheck/tests could not be executed because Node.js was not available in PATH or searched common locations. Manual Extension Host visual/sign-in checks remain pending. Deviation: because the production corpus is `source_not_provided` and empty, a Resolved interaction updates DKT only when retrieval identifies a KC; it does not fabricate a category-to-KC mapping. Prior live-provider, Block-7 sign-in, synthetic model/corpus, and missing holdout-data limitations remain. |
+| 11 | October 1, 2026 | Added a Knowledge Map webview with all 30 synthetic KCs, numeric mastery bars, explicit neutral rendering when the original taxonomy/threshold source is unavailable, and local CSP-protected assets. Added `mast.runCode`, which validates an active Python file is inside the workspace, launches the configured executable with a safe argument array and `shell: false`, bounds captured output, and routes stderr through the existing Block 10 ChatWorkflow/Panel; no local server or shell concatenation was added. Added mocked Knowledge Map, threshold-source, safe execution, stderr routing, mapped-KC Resolved mastery, and CSP tests. Editor diagnostics are clean and Gateway chat tests pass 14/14; extension npm typecheck/tests could not run because Node.js is unavailable. Deviation: the original 30-KC names, red/yellow/green cutoffs, and production corpus remain unavailable, so no color bands or fabricated taxonomy are claimed. Extension Host visual, sign-in, provider, and cross-platform checks remain pending. |
 
 ---
 
@@ -159,7 +156,7 @@ If a block can't finish inside budget: commit only what's genuinely complete and
 | 8 | Gateway Socratic Generation Chain | ✅ Complete; mocked providers only, live-provider smoke pending |
 | 9 | Constitutional Verify + Regen + Quota | ✅ Complete; mocked providers only, process-local optional quota |
 | 10 | Chat Panel Webview | ✅ Implementation complete; Node test execution and Extension Host checks pending |
-| 11 | Knowledge Map + Error Capture | ⬜ Not started |
+| 11 | Knowledge Map + Error Capture | ✅ Implementation complete; Node test execution and Extension Host checks pending |
 | 12 | Billing (Stripe) & Quota Enforcement | ⬜ Not started |
 | 13 | Observability & Telemetry | ⬜ Not started |
 | 14 | Packaging & Marketplace Listing | ⬜ Not started |

@@ -4,13 +4,16 @@ import path from "node:path";
 import { ExtensionAuthService } from "./auth/authService.js";
 import { AuthModeService } from "./auth/authMode.js";
 import { ByokSecretStore } from "./auth/byokStore.js";
-import { GatewayApiClient } from "./auth/gatewayClient.js";
+import { GatewayApiClient, GatewayApiError } from "./auth/gatewayClient.js";
 import { MastTokenStore } from "./auth/tokenStore.js";
 import type { AuthMode } from "./auth/types.js";
-import { GatewayApiError } from "./auth/gatewayClient.js";
 import { VscodeGitHubTokenProvider } from "./auth/vscodeGitHubTokenProvider.js";
 import { ChatWorkflow } from "./chat/chatWorkflow.js";
 import { showChatPanel } from "./chat/chatPanel.js";
+import type { ChatPanelController } from "./chat/chatPanel.js";
+import { showKnowledgeMapPanel } from "./knowledge/knowledgeMapView.js";
+import type { KnowledgeMapPanel } from "./knowledge/knowledgeMapView.js";
+import { capturedErrorText, runActivePythonFile } from "./execution/runPythonFile.js";
 import { LocalInference } from "./inference/localInference.js";
 import { resolveModelPaths } from "./inference/modelPaths.js";
 import type { SerializedDktState } from "./inference/types.js";
@@ -47,40 +50,88 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   const createGatewayClient = () =>
     new GatewayApiClient(vscode.workspace.getConfiguration("mast").get("gatewayUrl", "http://127.0.0.1:8000"));
+  let chatPanel: ChatPanelController | undefined;
+  let knowledgeMap: KnowledgeMapPanel | undefined;
+
+  const createChatWorkflow = (): ChatWorkflow => new ChatWorkflow({
+    inference,
+    retrieval,
+    tokens: {
+      get: async () => {
+        const stored = await tokenStore.get();
+        if (stored) {
+          return stored;
+        }
+        await createAuthService().signInWithGitHub();
+        return tokenStore.get();
+      },
+    },
+    gateway: {
+      chat: async (accessToken, payload) => {
+        const gateway = createGatewayClient();
+        try {
+          return await gateway.chat(accessToken, payload);
+        } catch (error) {
+          if (!(error instanceof GatewayApiError) || error.statusCode !== 401) {
+            throw error;
+          }
+          const refreshed = await createAuthService().refresh();
+          return gateway.chat(refreshed.access_token, payload);
+        }
+      },
+    },
+    getDktState: () => context.globalState.get<SerializedDktState>(dktStateKey),
+    saveDktState: (state) => context.globalState.update(dktStateKey, state),
+  });
 
   context.subscriptions.push(
     vscode.commands.registerCommand("mast.openChat", () => {
-      const workflow = new ChatWorkflow({
-        inference,
-        retrieval,
-        tokens: {
-          get: async () => {
-            const stored = await tokenStore.get();
-            if (stored) {
-              return stored;
-            }
-            await createAuthService().signInWithGitHub();
-            return tokenStore.get();
-          },
+      const workflow = createChatWorkflow();
+      chatPanel = showChatPanel(context, workflow, {
+        onMasteryChanged: async (masteryByKc) => {
+          await knowledgeMap?.update(masteryByKc);
         },
-        gateway: {
-          chat: async (accessToken, payload) => {
-            const gateway = createGatewayClient();
-            try {
-              return await gateway.chat(accessToken, payload);
-            } catch (error) {
-              if (!(error instanceof GatewayApiError) || error.statusCode !== 401) {
-                throw error;
-              }
-              const refreshed = await createAuthService().refresh();
-              return gateway.chat(refreshed.access_token, payload);
-            }
-          },
-        },
-        getDktState: () => context.globalState.get<SerializedDktState>(dktStateKey),
-        saveDktState: (state) => context.globalState.update(dktStateKey, state),
       });
-      showChatPanel(context, workflow);
+    }),
+    vscode.commands.registerCommand("mast.openKnowledgeMap", () => {
+      knowledgeMap = showKnowledgeMapPanel(
+        context,
+        inference.getKnowledgeComponents(),
+        Object.fromEntries(inference.getKnowledgeComponents().map((kcId) => [kcId, 0.5])),
+      );
+    }),
+    vscode.commands.registerCommand("mast.runCode", async () => {
+      const editor = vscode.window.activeTextEditor;
+      const workspaceFolder = editor ? vscode.workspace.getWorkspaceFolder(editor.document.uri) : undefined;
+      if (!workspaceFolder) {
+        await vscode.window.showErrorMessage("Open a Python file inside a workspace before running MAST code capture.");
+        return;
+      }
+      try {
+        const result = await runActivePythonFile(
+          editor && { fileName: editor.document.fileName, languageId: editor.document.languageId },
+          {
+            workspaceRoot: workspaceFolder.uri.fsPath,
+            pythonCommand: vscode.workspace.getConfiguration("mast").get("pythonCommand", "python"),
+          },
+        );
+        const errorText = capturedErrorText(result);
+        if (!errorText) {
+          await vscode.window.showInformationMessage("MAST ran the active Python file without capturing an error.");
+          return;
+        }
+        if (!chatPanel) {
+          chatPanel = showChatPanel(context, createChatWorkflow(), {
+            onMasteryChanged: async (masteryByKc) => {
+              await knowledgeMap?.update(masteryByKc);
+            },
+          });
+        }
+        await chatPanel.sendCapturedError(errorText);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "MAST could not run the active Python file.";
+        await vscode.window.showErrorMessage(message);
+      }
     }),
     vscode.commands.registerCommand("mast.classifyError", async () => {
       const errorText = await vscode.window.showInputBox({

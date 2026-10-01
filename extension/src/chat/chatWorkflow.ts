@@ -73,6 +73,10 @@ export class ChatWorkflow {
     return this.interactionActive;
   }
 
+  get masterySnapshot(): Record<string, number> {
+    return { ...this.masteryByKc };
+  }
+
   async send(text: string): Promise<ChatTurnResult> {
     return this.runTurn(text, false);
   }

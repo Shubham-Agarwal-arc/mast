@@ -8,6 +8,15 @@ import { createChatHtml } from "./chatView.js";
 
 const panelType = "mast.chat";
 
+export interface ChatPanelController {
+  panel: vscode.WebviewPanel;
+  sendCapturedError(errorText: string): Promise<void>;
+}
+
+export interface ChatPanelOptions {
+  onMasteryChanged?: (masteryByKc: Readonly<Record<string, number>>) => Promise<void> | void;
+}
+
 function safeErrorMessage(error: unknown): string {
   if (error instanceof GatewayApiError) {
     return error.message;
@@ -38,7 +47,8 @@ async function postTurn(webview: vscode.Webview, result: ChatTurnResult): Promis
 export function showChatPanel(
   context: vscode.ExtensionContext,
   workflow: ChatWorkflow,
-): vscode.WebviewPanel {
+  options: ChatPanelOptions = {},
+): ChatPanelController {
   const panel = vscode.window.createWebviewPanel(panelType, "MAST Chat", vscode.ViewColumn.Beside, {
     enableScripts: true,
     localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media")],
@@ -48,20 +58,7 @@ export function showChatPanel(
   const styleUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "media", "chat.css"));
   panel.webview.html = createChatHtml(panel.webview.cspSource, String(scriptUri), String(styleUri), nonce);
 
-  panel.webview.onDidReceiveMessage(async (message: unknown) => {
-    if (!isChatPanelMessage(message)) {
-      return;
-    }
-    if (message.type === "resolved") {
-      try {
-        const masteryPercent = await workflow.resolve();
-        await panel.webview.postMessage({ type: "resolved", masteryPercent });
-      } catch (error) {
-        await panel.webview.postMessage({ type: "error", message: safeErrorMessage(error) });
-      }
-      return;
-    }
-
+  const submit = async (message: { type: "submit" | "followUp"; text: string }): Promise<void> => {
     await panel.webview.postMessage({ type: "pending" });
     try {
       const result = message.type === "followUp"
@@ -71,8 +68,31 @@ export function showChatPanel(
     } catch (error) {
       await panel.webview.postMessage({ type: "error", message: safeErrorMessage(error) });
     }
+  };
+
+  const sendCapturedError = async (errorText: string): Promise<void> => {
+    await panel.webview.postMessage({ type: "capturedError", text: errorText });
+    await submit({ type: "submit", text: errorText });
+  };
+
+  panel.webview.onDidReceiveMessage(async (message: unknown) => {
+    if (!isChatPanelMessage(message)) {
+      return;
+    }
+    if (message.type === "resolved") {
+      try {
+        const masteryPercent = await workflow.resolve();
+        await options.onMasteryChanged?.(workflow.masterySnapshot);
+        await panel.webview.postMessage({ type: "resolved", masteryPercent });
+      } catch (error) {
+        await panel.webview.postMessage({ type: "error", message: safeErrorMessage(error) });
+      }
+      return;
+    }
+
+    await submit(message);
   });
 
   context.subscriptions.push(panel);
-  return panel;
+  return { panel, sendCapturedError };
 }
