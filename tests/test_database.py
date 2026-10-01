@@ -27,7 +27,9 @@ def _assert_prd_columns(engine) -> None:
     }
     assert {
         "id", "session_id", "error_category", "kc_ids", "resolved", "hint_depth",
-        "constitutional_triggered", "latency_ms", "created_at",
+        "classification_confidence", "mastery_delta", "predicted_hints_needed",
+        "constitutional_triggered", "regeneration_attempts", "regeneration_succeeded",
+        "final_response_verified", "latency_ms", "latency_breakdown", "quota_outcome", "created_at",
     } <= {column["name"] for column in inspector.get_columns("interactions")}
     assert {"id", "user_id", "kc_id", "mastery_probability", "updated_at"} <= {
         column["name"] for column in inspector.get_columns("mastery_states")

@@ -102,11 +102,12 @@ def subscription_event(user_id, event_id="evt_123", event_type="customer.subscri
     }
 
 
-def test_checkout_is_authenticated_server_configured_and_does_not_expose_secrets(billing_client):
+def test_checkout_is_authenticated_server_configured_and_does_not_expose_secrets(billing_client, caplog):
     client = billing_client["client"]
     stripe = billing_client["stripe"]
 
-    response = client.post("/v1/billing/checkout", json={"tier": "pro"})
+    with caplog.at_level("INFO"):
+        response = client.post("/v1/billing/checkout", json={"tier": "pro"})
 
     assert response.status_code == 200
     assert response.json() == {
@@ -116,6 +117,7 @@ def test_checkout_is_authenticated_server_configured_and_does_not_expose_secrets
     assert stripe.checkout_kwargs["line_items"] == [{"price": "price_pro_test", "quantity": 1}]
     assert stripe.checkout_kwargs["metadata"]["user_id"] == str(billing_client["user_id"])
     assert "sk_test_mock_only" not in response.text
+    assert "sk_test_mock_only" not in caplog.text
 
 
 def test_webhook_verifies_signature_updates_subscription_and_is_idempotent(billing_client):
@@ -167,17 +169,20 @@ def test_cancellation_returns_user_to_free_policy(billing_client):
         assert user.plan_tier == "free"
 
 
-def test_invalid_webhook_signature_is_safe(billing_client):
+def test_invalid_webhook_signature_is_safe(billing_client, caplog):
     stripe = billing_client["stripe"]
     stripe.construct_event = lambda *_args: (_ for _ in ()).throw(RuntimeError("secret provider detail"))
 
-    response = billing_client["client"].post(
-        "/v1/billing/webhook", content=b"bad", headers={"Stripe-Signature": "bad"}
-    )
+    with caplog.at_level("INFO"):
+        response = billing_client["client"].post(
+            "/v1/billing/webhook", content=b"bad", headers={"Stripe-Signature": "bad"}
+        )
 
     assert response.status_code == 400
     assert response.json() == {"detail": "Invalid billing webhook"}
     assert "secret provider detail" not in response.text
+    assert "secret provider detail" not in caplog.text
+    assert "whsec_mock_only" not in caplog.text
 
 
 def test_free_quota_blocks_then_active_pro_subscription_lifts_quota(billing_client):

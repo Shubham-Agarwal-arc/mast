@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+from time import perf_counter
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
@@ -11,21 +13,35 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.orm import Session as OrmSession
 
+from gateway.app.auth import get_current_user
 from gateway.app.config import Settings
 from gateway.app.dependencies import get_settings
-from gateway.app.auth import get_current_user
 from gateway.app.quota import enforce_chat_quota
-from gateway.db.models import User
+from gateway.db.database import get_db
+from gateway.db.models import Interaction, Session, User
 
 
 router = APIRouter(tags=["chat"])
 chat_logger = logging.getLogger("mast.chat")
 MAX_REGENERATION_ATTEMPTS = 2
+CLASSIFICATION_CATEGORIES = frozenset({
+    "data_leakage",
+    "data_pipeline",
+    "dtype_device",
+    "gradient_autograd",
+    "nan_loss",
+    "overfitting",
+    "shape_mismatch",
+    "underfitting",
+})
 
 MasteryProbability = Annotated[float, Field(ge=0.0, le=1.0)]
-MasteryKcId = Annotated[str, Field(min_length=1, max_length=64)]
+MasteryKcId = Annotated[str, Field(pattern=r"^KC_\d{2}$")]
 RetrievedContext = Annotated[str, Field(min_length=1, max_length=2_000)]
+Confidence = Annotated[float, Field(ge=0.0, le=1.0)]
+PredictedHints = Annotated[float, Field(gt=0.0, le=10.0)]
 
 
 class ChatRequest(BaseModel):
@@ -33,14 +49,25 @@ class ChatRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=4_000)
     error_text: str | None = Field(default=None, max_length=8_000)
-    error_category: str | None = Field(default=None, max_length=80)
+    error_category: str | None = Field(default=None, max_length=64)
     mastery_by_kc: dict[MasteryKcId, MasteryProbability] = Field(default_factory=dict, max_length=30)
+    kc_ids: list[MasteryKcId] = Field(default_factory=list, max_length=30)
+    classification_confidence: Confidence | None = None
+    predicted_hints_needed: PredictedHints | None = None
     retrieved_context: list[RetrievedContext] = Field(default_factory=list, max_length=4)
     hint_depth: int = Field(default=0, ge=0, le=10)
 
 
 class ChatResponse(BaseModel):
     response: str = Field(min_length=1, max_length=8_000)
+
+
+class FeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    interaction_id: UUID
+    resolved: bool
+    mastery_delta: float | None = Field(default=None, ge=-1.0, le=1.0)
 
 
 class ProviderConfigurationError(RuntimeError):
@@ -172,17 +199,21 @@ def _is_direct_answer(verifier: Runnable, candidate: str) -> bool:
 def generate_socratic_response(
     payload: ChatRequest,
     request: Request,
+    response_headers: Response,
     _current_user: User = Depends(enforce_chat_quota),
     chain: Runnable = Depends(get_socratic_chain),
     verifier: Runnable = Depends(get_constitutional_verifier),
+    db: OrmSession = Depends(get_db),
 ) -> ChatResponse:
+    total_started = perf_counter()
+    category = payload.error_category if payload.error_category in CLASSIFICATION_CATEGORIES else None
     mastery_summary = ", ".join(
         f"{kc_id}={probability:.2f}" for kc_id, probability in sorted(payload.mastery_by_kc.items())
     )
     inputs = {
         "message": payload.message,
         "error_text": payload.error_text or "Not provided",
-        "error_category": payload.error_category or "Not classified",
+        "error_category": category or "Not classified",
         "mastery_summary": mastery_summary or "Not provided",
         "retrieved_context": "\n\n".join(payload.retrieved_context) or "Not provided",
         "hint_depth": payload.hint_depth,
@@ -191,7 +222,10 @@ def generate_socratic_response(
     regeneration_attempts = 0
     regeneration_succeeded = False
     final_verified = False
+    llm_ms = 0.0
+    interaction_id: UUID | None = None
     try:
+        llm_started = perf_counter()
         response = _generate_candidate(chain, inputs, "")
         direct_answer = _is_direct_answer(verifier, response)
         triggered = direct_answer
@@ -213,17 +247,95 @@ def generate_socratic_response(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Socratic response could not be verified",
             )
+        llm_ms = round((perf_counter() - llm_started) * 1000, 2)
+        session = Session(user_id=_current_user.id)
+        db.add(session)
+        db.flush()
+        interaction = Interaction(
+            session_id=session.id,
+            error_category=category or "unclassified",
+            kc_ids=payload.kc_ids,
+            resolved=None,
+            hint_depth=payload.hint_depth,
+            classification_confidence=payload.classification_confidence,
+            predicted_hints_needed=payload.predicted_hints_needed,
+            constitutional_triggered=triggered,
+            regeneration_attempts=regeneration_attempts,
+            regeneration_succeeded=regeneration_succeeded,
+            final_response_verified=final_verified,
+            latency_ms=round((perf_counter() - total_started) * 1000, 2),
+            latency_breakdown={
+                "local_ms": None,
+                "network_ms": None,
+                "llm_ms": llm_ms,
+                "total_ms": round((perf_counter() - total_started) * 1000, 2),
+            },
+            quota_outcome="allowed",
+        )
+        db.add(interaction)
+        db.commit()
+        interaction_id = interaction.id
+        response_headers.headers["X-MAST-Interaction-ID"] = str(interaction.id)
         return ChatResponse(response=response)
     finally:
+        if not llm_ms and "llm_started" in locals():
+            llm_ms = round((perf_counter() - llm_started) * 1000, 2)
         chat_logger.info(
-            "constitutional_check_complete",
+            "interaction_complete",
             extra={
                 "request_id": getattr(request.state, "request_id", None),
-                "interaction_id": getattr(request.state, "request_id", None),
+                "interaction_id": str(interaction_id) if interaction_id else None,
                 "user_id": str(_current_user.id),
+                "classification_category": category or "unclassified",
+                "classification_confidence": payload.classification_confidence,
+                "kc_ids": payload.kc_ids,
+                "mastery_delta": None,
+                "hint_depth": payload.hint_depth,
                 "constitutional_triggered": triggered,
                 "regeneration_attempts": regeneration_attempts,
                 "regeneration_succeeded": regeneration_succeeded,
                 "final_response_verified": final_verified,
+                "latency_breakdown": {
+                    "local_ms": None,
+                    "network_ms": None,
+                    "llm_ms": llm_ms,
+                    "total_ms": round((perf_counter() - total_started) * 1000, 2),
+                },
+                "quota_outcome": "allowed",
             },
         )
+
+
+@router.post("/v1/feedback", status_code=status.HTTP_204_NO_CONTENT)
+def record_feedback(
+    payload: FeedbackRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: OrmSession = Depends(get_db),
+) -> None:
+    interaction = db.get(Interaction, payload.interaction_id)
+    if interaction is None or interaction.session.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interaction not found")
+    interaction.resolved = payload.resolved
+    interaction.mastery_delta = payload.mastery_delta
+    db.commit()
+    chat_logger.info(
+        "interaction_feedback",
+        extra={
+            "request_id": getattr(request.state, "request_id", None),
+            "interaction_id": str(interaction.id),
+            "user_id": str(current_user.id),
+            "classification_category": interaction.error_category,
+            "classification_confidence": interaction.classification_confidence,
+            "kc_ids": interaction.kc_ids,
+            "mastery_delta": interaction.mastery_delta,
+            "hint_depth": interaction.hint_depth,
+            "constitutional_triggered": interaction.constitutional_triggered,
+            "regeneration_attempts": interaction.regeneration_attempts,
+            "regeneration_succeeded": interaction.regeneration_succeeded,
+            "final_response_verified": interaction.final_response_verified,
+            "latency_breakdown": interaction.latency_breakdown,
+            "quota_outcome": interaction.quota_outcome,
+            "resolved": interaction.resolved,
+        },
+    )

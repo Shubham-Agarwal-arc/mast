@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from threading import Lock
 from time import monotonic
@@ -13,7 +14,10 @@ from gateway.app.auth import get_current_user
 from gateway.app.config import Settings
 from gateway.app.dependencies import get_settings
 from gateway.db.database import get_db
-from gateway.db.models import Subscription, User
+from gateway.db.models import Interaction, Session, Subscription, User
+
+
+quota_logger = logging.getLogger("mast.quota")
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,31 @@ def enforce_chat_quota(
     limit = None if pro_active else settings.free_chat_quota_limit
     decision = counter.consume(str(current_user.id), limit)
     if not decision.allowed:
+        interaction_session = Session(user_id=current_user.id)
+        db.add(interaction_session)
+        db.flush()
+        db.add(
+            Interaction(
+                session_id=interaction_session.id,
+                error_category="quota_blocked",
+                kc_ids=[],
+                resolved=None,
+                hint_depth=0,
+                constitutional_triggered=False,
+                latency_ms=0,
+                quota_outcome="blocked",
+            )
+        )
+        db.commit()
+        quota_logger.info(
+            "chat_quota_blocked",
+            extra={
+                "user_id": str(current_user.id),
+                "quota_outcome": "blocked",
+                "quota_used": decision.used,
+                "quota_limit": decision.limit,
+            },
+        )
         raise HTTPException(
             status_code=429,
             detail="Chat quota exceeded",

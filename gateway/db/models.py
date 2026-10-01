@@ -54,12 +54,24 @@ class Interaction(Base):
     )
     error_category: Mapped[str] = mapped_column(String(64), nullable=False)
     kc_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
-    resolved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    resolved: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     hint_depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    classification_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mastery_delta: Mapped[float | None] = mapped_column(Float, nullable=True)
+    predicted_hints_needed: Mapped[float | None] = mapped_column(Float, nullable=True)
     constitutional_triggered: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    regeneration_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    regeneration_succeeded: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    final_response_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     latency_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0, server_default="0")
+    latency_breakdown: Mapped[dict[str, float | None] | None] = mapped_column(JSON, nullable=True)
+    quota_outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     session: Mapped[Session] = relationship(back_populates="interactions")

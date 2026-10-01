@@ -72,6 +72,11 @@
           "default": "http://127.0.0.1:8000",
           "description": "MAST Gateway base URL. Remote URLs must use HTTPS; HTTP is accepted only for localhost development."
         },
+        "mast.telemetryEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Share derived interaction metadata with the MAST Gateway for product metrics. Message, error, and code content are never sent to telemetry endpoints."
+        },
         "mast.authMode": {
           "type": "string",
           "enum": [

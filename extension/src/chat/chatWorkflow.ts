@@ -15,6 +15,11 @@ export interface ChatRetrieval {
 
 export interface ChatGateway {
   chat(accessToken: string, payload: GatewayChatRequest): Promise<GatewayChatResponse>;
+  feedback?(accessToken: string, payload: {
+    interaction_id: string;
+    resolved: boolean;
+    mastery_delta?: number;
+  }): Promise<void>;
 }
 
 export interface ChatTokenStore {
@@ -28,6 +33,7 @@ export interface ChatWorkflowOptions {
   tokens: ChatTokenStore;
   getDktState(): SerializedDktState | undefined;
   saveDktState(state: SerializedDktState): Promise<void>;
+  telemetryEnabled?: boolean;
 }
 
 export interface ChatTurnResult {
@@ -58,6 +64,7 @@ export class ChatWorkflow {
   private activeErrorText: string | undefined;
   private interactionActive = false;
   private hintDepth = 0;
+  private activeInteractionId: string | undefined;
 
   constructor(private readonly options: ChatWorkflowOptions) {
     this.masteryByKc = Object.fromEntries(
@@ -116,7 +123,12 @@ export class ChatWorkflow {
       retrieved_context: retrieved.map((result) => result.document.text.slice(0, 2_000)),
       hint_depth: this.hintDepth,
     };
+    if (this.options.telemetryEnabled) {
+      payload.classification_confidence = classification.confidence;
+      payload.kc_ids = [...new Set(retrieved.map((result) => result.document.kcId))];
+    }
     const result = await this.options.gateway.chat(tokens.access_token, payload);
+    this.activeInteractionId = result.interactionId;
     this.activeErrorText = errorText;
     this.interactionActive = true;
     this.hintDepth += 1;
@@ -136,6 +148,7 @@ export class ChatWorkflow {
     }
 
     if (this.lastRelevantKcId) {
+      const previousMastery = this.masteryByKc[this.lastRelevantKcId];
       const update = await this.options.inference.updateMastery(
         this.lastRelevantKcId,
         true,
@@ -143,10 +156,31 @@ export class ChatWorkflow {
       );
       this.masteryByKc = update.masteryByKc;
       await this.options.saveDktState(update.state);
+      const currentMastery = this.masteryByKc[this.lastRelevantKcId];
+      const tokens = await this.options.tokens.get();
+      if (
+        this.options.telemetryEnabled &&
+        this.activeInteractionId &&
+        tokens?.access_token &&
+        this.options.gateway.feedback
+      ) {
+        try {
+          await this.options.gateway.feedback(tokens.access_token, {
+            interaction_id: this.activeInteractionId,
+            resolved: true,
+            ...(previousMastery !== undefined && currentMastery !== undefined
+              ? { mastery_delta: currentMastery - previousMastery }
+              : {}),
+          });
+        } catch {
+          // Telemetry failure must not interrupt the local mastery update.
+        }
+      }
     }
     this.interactionActive = false;
     this.hintDepth = 0;
     this.lastRelevantKcId = undefined;
+    this.activeInteractionId = undefined;
     return this.masteryPercent;
   }
 }

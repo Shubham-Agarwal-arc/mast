@@ -79,9 +79,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return gateway.chat(refreshed.access_token, payload);
         }
       },
+      feedback: async (accessToken, payload) => {
+        const gateway = createGatewayClient();
+        try {
+          await gateway.feedback(accessToken, payload);
+        } catch (error) {
+          if (!(error instanceof GatewayApiError) || error.statusCode !== 401) {
+            throw error;
+          }
+          const refreshed = await createAuthService().refresh();
+          await gateway.feedback(refreshed.access_token, payload);
+        }
+      },
     },
     getDktState: () => context.globalState.get<SerializedDktState>(dktStateKey),
     saveDktState: (state) => context.globalState.update(dktStateKey, state),
+    telemetryEnabled: vscode.workspace.getConfiguration("mast").get<boolean>("telemetryEnabled", false),
   });
 
   context.subscriptions.push(

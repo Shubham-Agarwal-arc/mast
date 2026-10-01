@@ -6,6 +6,8 @@ export interface GatewayChatRequest {
   message: string;
   error_text?: string;
   error_category?: string;
+  classification_confidence?: number;
+  kc_ids?: string[];
   mastery_by_kc: Record<string, number>;
   retrieved_context: string[];
   hint_depth: number;
@@ -13,6 +15,13 @@ export interface GatewayChatRequest {
 
 export interface GatewayChatResponse {
   response: string;
+  interactionId?: string;
+}
+
+export interface GatewayFeedbackRequest {
+  interaction_id: string;
+  resolved: boolean;
+  mastery_delta?: number;
 }
 
 export class GatewayApiError extends Error {
@@ -128,7 +137,35 @@ export class GatewayApiClient implements AuthGateway {
     ) {
       throw new GatewayApiError("MAST Gateway returned an invalid chat response", response.status);
     }
-    return { response: (body as GatewayChatResponse).response };
+    const interactionId = response.headers.get("X-MAST-Interaction-ID");
+    return {
+      response: (body as GatewayChatResponse).response,
+      ...(interactionId ? { interactionId } : {}),
+    };
+  }
+
+  async feedback(accessToken: string, payload: GatewayFeedbackRequest): Promise<void> {
+    if (!accessToken.trim()) {
+      throw new GatewayApiError("Sign in with GitHub before sending MAST feedback");
+    }
+    let response: Response;
+    try {
+      response = await this.fetcher(`${this.baseUrl}/v1/feedback`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new GatewayApiError("Could not reach the MAST Gateway");
+    }
+    if (!response.ok) {
+      throw new GatewayApiError("MAST feedback could not be recorded", response.status);
+    }
   }
 
   private async postTokenPair(path: string, payload: Record<string, string>): Promise<TokenPair> {

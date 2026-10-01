@@ -1,6 +1,10 @@
+import json
 import os
-from types import SimpleNamespace
+from uuid import uuid4
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
@@ -18,25 +22,48 @@ from gateway.app.chat import (
 )
 from gateway.app.config import Settings
 from gateway.app.main import create_app
+from gateway.app.logging_config import JsonLogFormatter
 from gateway.app.quota import ChatQuotaCounter
 from gateway.db.database import get_db
 from gateway.app.quota import enforce_chat_quota
+from gateway.db.base import Base
+from gateway.db.models import Interaction, User
 
 
 def make_client(
     *, authenticated: bool, chain=None, verifier=None, settings: Settings | None = None, use_real_quota: bool = False
 ) -> TestClient:
     app = create_app(settings or Settings(jwt_secret="test-only-secret-with-at-least-32-bytes"))
-    if authenticated:
-        app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id="test-user")
-        if not use_real_quota:
-            app.dependency_overrides[enforce_chat_quota] = lambda: SimpleNamespace(id="test-user")
-        else:
-            class EmptySubscriptionDb:
-                def scalar(self, _statement):
-                    return None
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    test_user = User(
+        id=uuid4(),
+        auth_provider="github",
+        external_id=f"test-user-{uuid4()}",
+        plan_tier="free",
+    )
+    with session_factory() as session:
+        session.add(test_user)
+        session.commit()
+    app.state.test_session_factory = session_factory
 
-            app.dependency_overrides[get_db] = lambda: EmptySubscriptionDb()
+    def override_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db] = override_db
+    if authenticated:
+        app.dependency_overrides[get_current_user] = lambda: test_user
+        if not use_real_quota:
+            app.dependency_overrides[enforce_chat_quota] = lambda: test_user
     if chain is not None:
         app.dependency_overrides[get_socratic_chain] = lambda: chain
     if verifier is None:
@@ -50,7 +77,10 @@ def valid_chat_request() -> dict[str, object]:
         "message": "Can you help me understand this tensor error?",
         "error_text": "RuntimeError: size mismatch between tensor dimensions 8 and 16",
         "error_category": "shape_mismatch",
+        "classification_confidence": 0.82,
+        "kc_ids": ["KC_00"],
         "mastery_by_kc": {"KC_00": 0.42},
+        "predicted_hints_needed": 2.0,
         "retrieved_context": ["A synthetic test context about aligning tensor dimensions."],
         "hint_depth": 1,
     }
@@ -129,6 +159,7 @@ def test_two_regeneration_cap_rejects_response_if_every_candidate_is_direct() ->
 def test_constitutional_outcome_log_contains_only_safe_metadata(caplog) -> None:
     sensitive_input = "private learner content sentinel"
     sensitive_candidate = "private direct response sentinel"
+    sensitive_token = "mast-bearer-token-sentinel"
     payload = valid_chat_request()
     payload["message"] = sensitive_input
     verdicts = iter(["DIRECT", "SOCRATIC"])
@@ -141,17 +172,113 @@ def test_constitutional_outcome_log_contains_only_safe_metadata(caplog) -> None:
         verifier=verifier,
     ) as client:
         with caplog.at_level("INFO", logger="mast.chat"):
-            response = client.post("/v1/chat", json=payload)
+            response = client.post(
+                "/v1/chat",
+                json=payload,
+                headers={"Authorization": f"Bearer {sensitive_token}"},
+            )
 
     assert response.status_code == 200
     record = next(record for record in caplog.records if record.name == "mast.chat")
-    assert record.getMessage() == "constitutional_check_complete"
+    assert record.getMessage() == "interaction_complete"
+    assert record.classification_category == "shape_mismatch"
+    assert record.classification_confidence == 0.82
+    assert record.kc_ids == ["KC_00"]
+    assert record.mastery_delta is None
+    assert record.hint_depth == 1
     assert record.constitutional_triggered is True
     assert record.regeneration_attempts == 1
     assert record.regeneration_succeeded is True
     assert record.final_response_verified is True
+    assert record.quota_outcome == "allowed"
+    assert record.latency_breakdown["llm_ms"] >= 0
+    structured = json.loads(JsonLogFormatter().format(record))
+    assert structured["classification_category"] == "shape_mismatch"
+    assert structured["classification_confidence"] == 0.82
+    assert structured["kc_ids"] == ["KC_00"]
+    assert structured["mastery_delta"] is None
+    assert structured["hint_depth"] == 1
+    assert structured["quota_outcome"] == "allowed"
+    assert structured["latency_breakdown"]["total_ms"] >= 0
     assert sensitive_input not in caplog.text
     assert sensitive_candidate not in caplog.text
+    assert sensitive_token not in caplog.text
+    assert payload["error_text"] not in caplog.text
+
+    with client.app.state.test_session_factory() as session:
+        interaction = session.query(Interaction).one()
+        assert interaction.error_category == "shape_mismatch"
+        assert interaction.classification_confidence == 0.82
+        assert interaction.kc_ids == ["KC_00"]
+        assert interaction.hint_depth == 1
+        assert interaction.constitutional_triggered is True
+        assert interaction.regeneration_attempts == 1
+        assert interaction.regeneration_succeeded is True
+        assert interaction.final_response_verified is True
+        assert interaction.quota_outcome == "allowed"
+        assert interaction.latency_breakdown["total_ms"] >= 0
+        assert interaction.resolved is None
+        assert interaction.mastery_delta is None
+
+
+def test_feedback_updates_only_the_authenticated_users_interaction(caplog) -> None:
+    with make_client(
+        authenticated=True,
+        chain=RunnableLambda(lambda _values: "Which dimensions align?"),
+        verifier=RunnableLambda(lambda _values: "SOCRATIC"),
+    ) as client:
+        chat = client.post("/v1/chat", json=valid_chat_request())
+        interaction_id = chat.headers["x-mast-interaction-id"]
+        with caplog.at_level("INFO", logger="mast.chat"):
+            feedback = client.post(
+                "/v1/feedback",
+                json={"interaction_id": interaction_id, "resolved": True, "mastery_delta": 0.08},
+            )
+        assert feedback.status_code == 204
+        with client.app.state.test_session_factory() as session:
+            interaction = session.query(Interaction).one()
+            assert interaction.resolved is True
+            assert interaction.mastery_delta == 0.08
+    record = next(record for record in caplog.records if record.getMessage() == "interaction_feedback")
+    assert record.mastery_delta == 0.08
+    assert record.resolved is True
+
+
+def test_untrusted_category_is_not_persisted_or_logged(caplog) -> None:
+    sentinel = "private_source_code_sentinel"
+    generated: list[dict[str, object]] = []
+    with make_client(
+        authenticated=True,
+        chain=RunnableLambda(lambda values: generated.append(values) or "Which dimensions align?"),
+        verifier=RunnableLambda(lambda _values: "SOCRATIC"),
+    ) as client:
+        with caplog.at_level("INFO", logger="mast.chat"):
+            response = client.post(
+                "/v1/chat",
+                json={**valid_chat_request(), "error_category": sentinel},
+            )
+
+        assert response.status_code == 200
+        assert generated[0]["error_category"] == "Not classified"
+        with client.app.state.test_session_factory() as session:
+            interaction = session.query(Interaction).one()
+            assert interaction.error_category == "unclassified"
+
+    assert sentinel not in caplog.text
+
+
+def test_kc_metadata_rejects_non_identifier_values() -> None:
+    with make_client(
+        authenticated=True,
+        chain=RunnableLambda(lambda _values: "Which dimensions align?"),
+        verifier=RunnableLambda(lambda _values: "SOCRATIC"),
+    ) as client:
+        response = client.post(
+            "/v1/chat",
+            json={**valid_chat_request(), "kc_ids": ["private-source-code"]},
+        )
+
+    assert response.status_code == 422
 
 
 def test_quota_counter_limits_per_user_and_resets_after_window() -> None:
@@ -170,7 +297,7 @@ def test_quota_counter_limits_per_user_and_resets_after_window() -> None:
     assert after_reset.allowed and after_reset.used == 1
 
 
-def test_chat_quota_blocks_before_a_second_generation() -> None:
+def test_chat_quota_blocks_before_a_second_generation(caplog) -> None:
     generated: list[dict[str, object]] = []
     chain = RunnableLambda(lambda values: generated.append(values) or "What can you infer?")
     settings = Settings(
@@ -178,15 +305,24 @@ def test_chat_quota_blocks_before_a_second_generation() -> None:
         free_chat_quota_limit=1,
         chat_quota_window_seconds=60,
     )
+    payload = {**valid_chat_request(), "message": "quota_private_content_sentinel"}
     with make_client(authenticated=True, chain=chain, settings=settings, use_real_quota=True) as client:
-        first = client.post("/v1/chat", json=valid_chat_request())
-        second = client.post("/v1/chat", json=valid_chat_request())
+        with caplog.at_level("INFO", logger="mast.quota"):
+            first = client.post("/v1/chat", json=payload)
+            second = client.post("/v1/chat", json=payload)
 
     assert first.status_code == 200
     assert second.status_code == 429
     assert second.json() == {"detail": "Chat quota exceeded"}
     assert second.headers["retry-after"]
     assert len(generated) == 1
+    assert "quota_private_content_sentinel" not in caplog.text
+    quota_record = next(record for record in caplog.records if record.name == "mast.quota")
+    assert quota_record.quota_outcome == "blocked"
+    with client.app.state.test_session_factory() as session:
+        blocked = session.query(Interaction).filter_by(quota_outcome="blocked").one()
+        assert blocked.error_category == "quota_blocked"
+        assert blocked.kc_ids == []
 
 
 def test_verifier_prompt_chain_runs_against_a_mocked_model() -> None:
@@ -270,15 +406,19 @@ def test_missing_server_provider_key_returns_safe_unavailable_error() -> None:
     assert response.json() == {"detail": "The configured generation provider is unavailable"}
 
 
-def test_provider_exception_does_not_leak_exception_details() -> None:
+def test_provider_exception_does_not_leak_exception_details(caplog) -> None:
     secret_detail = "provider-secret-value-must-not-appear"
+    private_message = "private-source-code-must-not-appear"
 
     def fail_generation(_values: dict[str, object]) -> str:
         raise RuntimeError(secret_detail)
 
     with make_client(authenticated=True, chain=RunnableLambda(fail_generation)) as client:
-        response = client.post("/v1/chat", json=valid_chat_request())
+        with caplog.at_level("INFO", logger="mast.chat"):
+            response = client.post("/v1/chat", json={**valid_chat_request(), "message": private_message})
 
     assert response.status_code == 502
     assert response.json() == {"detail": "Socratic generation failed"}
     assert secret_detail not in response.text
+    assert secret_detail not in caplog.text
+    assert private_message not in caplog.text

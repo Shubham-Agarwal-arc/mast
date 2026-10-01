@@ -5,6 +5,7 @@ from gateway.app.billing import router as billing_router
 from gateway.app.chat import router as chat_router
 from gateway.app.config import Settings
 from gateway.app.logging_config import configure_logging
+from gateway.app.metrics import router as metrics_router
 from gateway.app.middleware import RequestLoggingMiddleware
 from gateway.app.quota import ChatQuotaCounter
 
@@ -18,6 +19,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(billing_router)
     app.include_router(chat_router)
+    app.include_router(metrics_router)
 
     @app.get("/v1/health", tags=["health"])
     def health() -> dict[str, str]:

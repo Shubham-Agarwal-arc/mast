@@ -23,9 +23,19 @@ class JsonLogFormatter(logging.Formatter):
             "regeneration_attempts",
             "regeneration_succeeded",
             "final_response_verified",
+            "classification_category",
+            "classification_confidence",
+            "kc_ids",
+            "mastery_delta",
+            "hint_depth",
+            "latency_breakdown",
+            "quota_outcome",
+            "quota_used",
+            "quota_limit",
+            "resolved",
         ):
             value = getattr(record, field, None)
-            if value is not None:
+            if hasattr(record, field):
                 payload[field] = value
         return json.dumps(payload, separators=(",", ":"))
 

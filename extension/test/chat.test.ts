@@ -34,7 +34,8 @@ function makeWorkflow(overrides: Partial<ChatWorkflowOptions> = {}) {
     gateway: Array<{ token: string; payload: Parameters<ChatWorkflowOptions["gateway"]["chat"]>[1] }>;
     updates: Array<{ kcId: string; resolved: boolean }>;
     savedStates: unknown[];
-  } = { classified: [], retrieved: [], gateway: [], updates: [], savedStates: [] };
+    feedback: Array<{ interaction_id: string; resolved: boolean; mastery_delta?: number }>;
+  } = { classified: [], retrieved: [], gateway: [], updates: [], savedStates: [], feedback: [] };
   let token: { access_token: string; refresh_token: string } | undefined = {
     access_token: "secret-mast-access-token",
     refresh_token: "secret-mast-refresh-token",
@@ -66,8 +67,9 @@ function makeWorkflow(overrides: Partial<ChatWorkflowOptions> = {}) {
     gateway: {
       chat: async (accessToken, payload) => {
         calls.gateway.push({ token: accessToken, payload });
-        return { response: "What do the trailing dimensions imply?" };
+        return { response: "What do the trailing dimensions imply?", interactionId: "interaction-test-id" };
       },
+      feedback: async (_accessToken, payload) => { calls.feedback.push(payload); },
     },
     tokens: { get: async () => token },
     getDktState: () => state,
@@ -104,6 +106,43 @@ test("Gateway chat uses bearer auth, bounded request contract, and validates res
   assert.deepEqual(JSON.parse(String(captured?.init?.body)), payload);
 });
 
+test("Gateway chat reads the interaction header and feedback sends metadata only", async () => {
+  const requests: Array<{ url: string; body: unknown }> = [];
+  const client = new GatewayApiClient("https://gateway.example.test", async (input, init) => {
+    requests.push({ url: String(input), body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    return String(input).endsWith("/v1/chat")
+      ? new Response(JSON.stringify({ response: "Which axis is broadcast?" }), {
+        status: 200,
+        headers: { "X-MAST-Interaction-ID": "interaction-42" },
+      })
+      : new Response(null, { status: 204 });
+  });
+
+  const result = await client.chat("mast-token", {
+    message: "private message",
+    error_text: "private traceback",
+    mastery_by_kc: {},
+    retrieved_context: [],
+    hint_depth: 0,
+    classification_confidence: 0.82,
+    kc_ids: ["KC_03"],
+  });
+  await client.feedback("mast-token", {
+    interaction_id: result.interactionId!,
+    resolved: true,
+    mastery_delta: 0.08,
+  });
+
+  assert.equal(result.interactionId, "interaction-42");
+  assert.equal(requests[1].url, "https://gateway.example.test/v1/feedback");
+  assert.deepEqual(requests[1].body, {
+    interaction_id: "interaction-42",
+    resolved: true,
+    mastery_delta: 0.08,
+  });
+  assert.doesNotMatch(JSON.stringify(requests[1].body), /private message|private traceback/);
+});
+
 test("Gateway chat failures discard server bodies and preserve safe status", async () => {
   const client = new GatewayApiClient("https://gateway.example.test", async () =>
     new Response("private provider exception and credential", { status: 429 }),
@@ -134,6 +173,8 @@ test("workflow classifies and retrieves locally before sending authenticated Gat
   assert.deepEqual(calls.retrieved[0].mastery, { KC_03: 0.5, KC_04: 0.5 });
   assert.equal(calls.gateway[0].token, "secret-mast-access-token");
   assert.equal(calls.gateway[0].payload.error_category, "shape_mismatch");
+  assert.equal("classification_confidence" in calls.gateway[0].payload, false);
+  assert.equal("kc_ids" in calls.gateway[0].payload, false);
   assert.deepEqual(calls.gateway[0].payload.retrieved_context, ["Tensor dimensions align from the right."]);
   assert.equal(result.response, "What do the trailing dimensions imply?");
   assert.equal(result.masteryPercent, 50);
@@ -153,6 +194,21 @@ test("follow-up keeps the original error context and Resolved updates local mast
   assert.deepEqual(calls.updates, [{ kcId: "KC_03", resolved: true }]);
   assert.deepEqual(calls.savedStates, [updatedState]);
   assert.equal(workflow.isInteractionActive, false);
+});
+
+test("opt-in telemetry sends derived metadata and content-free resolution feedback", async () => {
+  const { workflow, calls } = makeWorkflow({ telemetryEnabled: true });
+  await workflow.send("RuntimeError: tensor dimensions do not match");
+
+  assert.equal(calls.gateway[0].payload.classification_confidence, 0.82);
+  assert.deepEqual(calls.gateway[0].payload.kc_ids, ["KC_03"]);
+  await workflow.resolve();
+
+  assert.equal(calls.feedback.length, 1);
+  assert.equal(calls.feedback[0].interaction_id, "interaction-test-id");
+  assert.equal(calls.feedback[0].resolved, true);
+  assert.ok(Math.abs((calls.feedback[0].mastery_delta ?? 0) - 0.22) < 1e-12);
+  assert.doesNotMatch(JSON.stringify(calls.feedback[0]), /RuntimeError|tensor dimensions/);
 });
 
 test("missing sign-in and transport failures keep the interaction inactive", async () => {
