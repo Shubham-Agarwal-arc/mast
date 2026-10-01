@@ -211,6 +211,16 @@ test("opt-in telemetry sends derived metadata and content-free resolution feedba
   assert.doesNotMatch(JSON.stringify(calls.feedback[0]), /RuntimeError|tensor dimensions/);
 });
 
+test("first-question walkthrough completion is recorded only after a successful chat turn", async () => {
+  let completions = 0;
+  const { workflow } = makeWorkflow({ onFirstSocraticQuestion: () => { completions += 1; } });
+
+  await workflow.send("shape error");
+  await workflow.followUp("Can you give me a smaller hint?");
+
+  assert.equal(completions, 1);
+});
+
 test("missing sign-in and transport failures keep the interaction inactive", async () => {
   const { workflow } = makeWorkflow({ tokens: { get: async () => undefined } });
   await assert.rejects(workflow.send("shape error"), /Sign in with GitHub/);

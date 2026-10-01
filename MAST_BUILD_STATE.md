@@ -4,14 +4,16 @@
 | | |
 |---|---|
 | Last updated | October 1, 2026 |
-| Updated by | Build session (Block 13) |
+| Updated by | Build session (Block 14, in progress) |
 | Repo | **https://github.com/Shubham-Agarwal-arc/mast** |
 
 ---
 
 ## ⚡ Quick Status
-- **Last known-good state:** Full Python suite passes 37 tests with 1 PostgreSQL integration skip; changed extension files have no editor diagnostics, but npm checks still require Node.js
-- **Blockers:** Node.js/npm are unavailable, so extension typecheck/test execution is pending; real Extension Host visual/manual checks and interactive GitHub sign-in remain pending. No Anthropic/OpenAI or Stripe server credentials were configured, so no live provider or Stripe smoke call was made. The PostgreSQL service is healthy and reachable, but the fresh-PostgreSQL migration integration runner timed out before creating its Alembic version table; only the fresh SQLite migration passed in this session. Original classifier/DKT weights, original 30-KC taxonomy, prototype ChromaDB corpus/difficulty metadata, training/session corpus, and held-out evaluation data remain unavailable; model quality and production retrieval content are unverified. The production reference corpus is empty, and the original mastery thresholds/taxonomy were not supplied, so the Knowledge Map displays neutral bars and explicitly does not infer red/yellow/green bands. Resolved mastery updates occur only when local retrieval identifies a KC.
+- **Blocks complete:** 13 / 16; Block 14 implementation is in progress.
+- **Current block:** Block 14 — Packaging & Marketplace Listing.
+- **Last known-good state:** Full Python suite passed 37 tests with 1 PostgreSQL integration skip in Block 13. Block 14's static manifest/asset assertions and changed-file editor diagnostics pass. Extension npm tests and `.vsix` packaging remain unverified.
+- **Blockers:** Node.js/npm and local `vsce`/`ovsx` are unavailable, so extension tests/typecheck, VSIX creation/content inspection, and install tests are pending. No real Extension Host is available for walkthrough, visuals, GitHub sign-in, or cross-platform checks. The publisher `mast` remains unconfirmed and no registry credentials were configured; nothing has been published. No live Anthropic/OpenAI or Stripe smoke calls were made. The PostgreSQL server is healthy/reachable, but Block 13's fresh-PostgreSQL migration runner timed out before creating its Alembic version table; fresh SQLite migration passed. Original classifier/DKT research weights, original 30-KC taxonomy, prototype ChromaDB corpus/difficulty metadata, training/session corpus, and held-out evaluation data remain unavailable; model quality and production retrieval content are unverified. The production reference corpus is empty and mastery thresholds/taxonomy were not supplied, so the Knowledge Map uses neutral bars without inferred color bands. Resolved mastery updates occur only when local retrieval identifies a KC.
 
 ---
 
@@ -23,18 +25,62 @@
 
 ---
 
-## ▶️ Copy This Into a New Session to Run Block 14
+## ▶️ Copy This Into a New Session to Continue Block 14
 
 Attach `MAST_BUILD_ROADMAP.md`, `MAST_BUILD_STATE.md` (this file),
-`docs/PRD.md`, current `extension/package.json`, extension source/media/
-tests from Blocks 10–13, local inference and model/corpus metadata, build
-artifacts/provenance, `.gitignore`, requirements, and the relevant Gateway
-health/auth/chat/metrics contracts and tests, then paste:
+`docs/PRD.md`, all extension source/tests and package files, `extension/.vscodeignore`,
+walkthrough media, bundled model assets and provenance/licenses, root
+`artifacts/synthetic/`, `.gitignore`, and Block 14 packaging tests, then paste:
 
 ```
-git add MAST_BUILD_STATE.md extension/package.json extension/src/auth/gatewayClient.ts extension/src/chat/chatWorkflow.ts extension/src/extension.ts extension/test/chat.test.ts gateway/app/chat.py gateway/app/logging_config.py gateway/app/main.py gateway/app/metrics.py gateway/app/quota.py gateway/db/models.py gateway/db/migrations/versions/0003_interaction_observability.py tests/test_billing.py tests/test_chat.py tests/test_database.py tests/test_metrics.py
-git commit -m "feat(observability): add safe interaction metrics (Block 13)"
-git push origin HEAD
+I'm building MAST. Continue Block 14 of 16 — Packaging & Marketplace Listing — per
+the attached MAST_BUILD_ROADMAP.md.
+My repo is
+https://github.com/Shubham-Agarwal-arc/mast.
+
+Do only Block 14, nothing from Block 15 onward. Work in the current
+workspace. Do not run any git command yourself and do not publish to either
+registry without explicit authorization and publisher credentials.
+
+1. Read MAST_BUILD_STATE.md in full first, then MAST_BUILD_ROADMAP.md,
+	 `docs/PRD.md` §§6.4 and 12, all extension package/source/tests,
+	 bundled/generated model metadata/licenses, `.vscodeignore`, and the
+	 Block 14 files. Sanity-check them against the state and preserve all
+	 Node/npm, Extension Host/sign-in, provider/Stripe, PostgreSQL,
+	 cross-platform, synthetic model/corpus, and KC threshold caveats.
+2. Finish only Block 14:
+	 - If Node.js/npm are available, run `npm ci`, `npm test`, and
+		 `npm run typecheck` in `/extension`.
+	 - Build a `.vsix` with `npm run package:vsix`. Inspect package contents
+		 for runtime dependencies, icon, walkthrough media, model/data assets,
+		 licenses, and notices; confirm tests, source, secrets, and dev-only
+		 files are excluded.
+	 - Validate the contributed walkthrough schema. Confirm it opens once on
+		 first activation, has no more than five steps, does not request a
+		 provider key in Managed Cloud mode, and completes its final step only
+		 after a successful first Socratic response.
+	 - Install and smoke-check on at least two of Windows/macOS/Linux if
+		 available. Record exactly which platforms and Extension Host checks
+		 were not possible.
+	 - Confirm the `mast` publisher identity before preparing registry
+		 submissions. Do not publish without explicit authorization; never
+		 request or handle publishing tokens in chat.
+	 - Preserve the facts that the MAST classifier/DKT assets are synthetic,
+		 production reference corpus is empty, original KC taxonomy/thresholds
+		 are absent, and no research-quality claim is established.
+3. Do not call live providers, Stripe, Marketplace, Open VSX, or external
+	 telemetry. Do not begin Block 15 QA, launch/go-live, instructor console,
+	 model retraining, or taxonomy invention.
+4. Update MAST_BUILD_STATE.md with Block 14 results/deviations and remain
+	 on Block 14 if any Definition of Done gate is unverified. Only after all
+	 gates pass, advance the state and write the full Block 15 prompt.
+5. Report changed files, exact validation results, pending platform/manual
+	 checks, and any remaining blockers. Do not run any git command yourself.
+
+Stay strictly inside Block 14. If Node/npm, registry authorization, or a
+real Extension Host is unavailable, perform local static/package checks
+where possible, keep Block 14 marked in progress, and identify the
+unverified Definition of Done items precisely.
 ```
 
 ## ✅ What's Done
@@ -56,6 +102,7 @@ Each entry records the block, date, factual summary, and any deviation from the 
 | 11 | October 1, 2026 | Added a Knowledge Map webview with all 30 synthetic KCs, numeric mastery bars, explicit neutral rendering when the original taxonomy/threshold source is unavailable, and local CSP-protected assets. Added `mast.runCode`, which validates an active Python file is inside the workspace, launches the configured executable with a safe argument array and `shell: false`, bounds captured output, and routes stderr through the existing Block 10 ChatWorkflow/Panel; no local server or shell concatenation was added. Added mocked Knowledge Map, threshold-source, safe execution, stderr routing, mapped-KC Resolved mastery, and CSP tests. Editor diagnostics are clean and Gateway chat tests pass 14/14; extension npm typecheck/tests could not run because Node.js is unavailable. Deviation: the original 30-KC names, red/yellow/green cutoffs, and production corpus remain unavailable, so no color bands or fabricated taxonomy are claimed. Extension Host visual, sign-in, provider, and cross-platform checks remain pending. |
 | 12 | October 1, 2026 | Added server-only Stripe configuration with placeholder Free/Pro price IDs, authenticated `/v1/billing/checkout`, signed `/v1/billing/webhook`, idempotent subscription event processing via durable `last_event_id`, and migration `0002`. Replaced Block 9's optional global quota limit with subscription-aware Free/Pro policy: configured Free daily cap, active/trialing Pro unlimited, durable subscription state, `Retry-After`, and `X-MAST-Upgrade-Required: true` without changing the chat response contract. Added offline mocked checkout, signature/error, idempotency, cancellation, quota-lifting, and session-preservation tests. Validation: focused billing/chat tests 19 passed; database/gateway tests 8 passed, 1 skipped; full Python suite 30 passed, 1 skipped, 47 warnings. No live Stripe, LLM provider, Node.js extension, or Extension Host checks were run. |
 | 13 | October 1, 2026 | Added safe, allowlisted structured interaction logs and durable Interaction metadata (classification category/confidence, retrieved KC IDs, hint depth, mastery delta when Resolved feedback arrives, constitutional trigger/regen/verification outcome, quota outcome, latency components, and optional predicted-hints input). Added migration `0003`, metadata-only authenticated `/v1/feedback`, and bounded authenticated per-user `GET /v1/metrics` with rolling LVM, resolution rate, constitutional trigger rate, latency percentiles, and quota counts. Existing chat JSON and billing contracts remain unchanged; interaction ID is returned in a header. Added default-off `mast.telemetryEnabled`; when enabled, only confidence/KC metadata and content-free resolution feedback are sent. No third-party telemetry SDK. Tests: full Python suite 37 passed, 1 skipped; focused Gateway suite 28 passed, 1 skipped; editor diagnostics clean. Fresh SQLite Alembic migration passed. PostgreSQL is reachable/healthy, but the fresh-PostgreSQL migration attempt timed out before migration began and is still pending. Deviation: the extension has no predicted-hints estimate, so LVM remains null until a real estimate is supplied; local/network latency components are null because the Gateway cannot observe extension timings. No research baselines are claimed. Node/npm checks, Extension Host, sign-in, live provider/Stripe, and cross-platform checks remain pending. |
+| 14 | October 1, 2026 | In progress. Added Marketplace metadata, MIT license, PNG icon, changelog, extension README/listing copy, `.vscodeignore`, third-party license/provenance notices, packaged synthetic classifier/DKT ONNX assets, a packaged model-path preference with a development fallback, and a 3-step first-run walkthrough whose final completion event follows a successful Socratic response. Added package/walkthrough and model-path tests. Static manifest/asset/provenance assertions and editor diagnostics pass. Node/npm/vsce/ovsx are unavailable, so extension tests, VSIX build/content inspection, Extension Host walkthrough, publisher confirmation, and two-platform install checks remain pending. Nothing was published. |
 
 ---
 
@@ -95,7 +142,7 @@ If a block can't finish inside budget: commit only what's genuinely complete and
 | 11 | Knowledge Map + Error Capture | ✅ Implementation complete; Node test execution and Extension Host checks pending |
 | 12 | Billing (Stripe) & Quota Enforcement | ✅ Complete; mocked Stripe only, live Stripe and extension checks pending |
 | 13 | Observability & Telemetry | ✅ Complete; production LVM inputs and PostgreSQL migration gate pending |
-| 14 | Packaging & Marketplace Listing | ⬜ Not started |
+| 14 | Packaging & Marketplace Listing | 🟡 In progress; VSIX build and install validation pending |
 | 15 | QA & Regression Validation | ⬜ Not started |
 | 16 | Launch Checklist & Go-Live | ⬜ Not started |
 

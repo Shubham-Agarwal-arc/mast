@@ -18,10 +18,15 @@ after(() => {
 const repositoryRoot = path.resolve(process.cwd(), "..");
 const paths = resolveModelPaths(path.join(repositoryRoot, "extension"));
 
-test("model directory resolves to the existing root artifacts without copying them", () => {
-  assert.equal(paths.directory, path.join(repositoryRoot, "artifacts", "synthetic"));
-  assert.equal(paths.classifier, path.join(repositoryRoot, "artifacts", "synthetic", "error_classifier.synthetic.onnx"));
-  assert.equal(paths.dkt, path.join(repositoryRoot, "artifacts", "synthetic", "dkt.synthetic.onnx"));
+test("model directory resolves to the packaged synthetic assets", () => {
+  assert.equal(paths.directory, path.join(repositoryRoot, "extension", "models", "MAST-Synthetic"));
+  assert.equal(paths.classifier, path.join(paths.directory, "error_classifier.synthetic.onnx"));
+  assert.equal(paths.dkt, path.join(paths.directory, "dkt.synthetic.onnx"));
+});
+
+test("configured model directory takes precedence over packaged artifacts", () => {
+  const configured = resolveModelPaths(path.join(repositoryRoot, "extension"), "custom-models");
+  assert.equal(configured.directory, path.join(repositoryRoot, "extension", "custom-models"));
 });
 
 test("classifier returns one of the eight labels and confidence from local ONNX inference", async () => {

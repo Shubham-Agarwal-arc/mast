@@ -2,12 +2,32 @@
   "name": "mast",
   "type": "module",
   "displayName": "MAST",
-  "description": "Local machine-learning error classification and mastery tracking for MAST.",
+  "description": "A Socratic machine-learning debugging tutor for VS Code.",
   "version": "0.1.0",
   "publisher": "mast",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shubham-Agarwal-arc/mast.git"
+  },
+  "homepage": "https://github.com/Shubham-Agarwal-arc/mast#readme",
+  "bugs": {
+    "url": "https://github.com/Shubham-Agarwal-arc/mast/issues"
+  },
+  "keywords": [
+    "machine learning",
+    "education",
+    "debugging",
+    "socratic",
+    "tutor"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "categories": [
     "Machine Learning"
   ],
@@ -65,7 +85,7 @@
         "mast.modelDirectory": {
           "type": "string",
           "default": "",
-          "description": "Optional local directory containing the MAST ONNX files and metadata.json. Empty uses the repository's artifacts/synthetic directory."
+          "description": "Optional local directory containing the MAST ONNX files and metadata.json. Empty uses packaged synthetic assets, with a repository artifact fallback for development."
         },
         "mast.gatewayUrl": {
           "type": "string",
@@ -96,12 +116,58 @@
           "description": "Python executable path used only by MAST: Run Python and Capture Error. It is launched without a shell."
         }
       }
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "firstRun",
+        "title": "Your first MAST question",
+        "description": "Sign in, open the chat, and work through your first machine-learning error. MAST's managed flow never asks for a provider API key.",
+        "isFeatured": true,
+        "steps": [
+          {
+            "id": "signIn",
+            "title": "Sign in with GitHub",
+            "description": "Connect your MAST account. The managed cloud flow uses MAST's server-side provider and does not require your API key.",
+            "media": {
+              "markdown": "walkthrough/sign-in.md"
+            },
+            "completionEvents": [
+              "onCommand:mast.signIn"
+            ]
+          },
+          {
+            "id": "openChat",
+            "title": "Open MAST Chat",
+            "description": "Open the MAST Chat panel to describe a machine-learning error or question.",
+            "media": {
+              "markdown": "walkthrough/open-chat.md"
+            },
+            "completionEvents": [
+              "onCommand:mast.openChat"
+            ]
+          },
+          {
+            "id": "firstQuestion",
+            "title": "Ask your first question",
+            "description": "Paste an error or ask about a concept in Chat. MAST responds with a focused Socratic question.",
+            "media": {
+              "markdown": "walkthrough/first-question.md"
+            },
+            "completionEvents": [
+              "onCommand:mast.internal.firstQuestionComplete"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p .",
     "typecheck": "tsc -p . --noEmit",
-    "test": "npm run compile && node --test out/test/auth.test.js out/test/block11.test.js out/test/chat.test.js out/test/inference.test.js out/test/retrieval.test.js",
+    "vscode:prepublish": "npm run compile",
+    "package:vsix": "npx --yes @vscode/vsce package",
+    "package:openvsx": "npm run package:vsix",
+    "test": "npm run compile && node --test out/test/auth.test.js out/test/block11.test.js out/test/chat.test.js out/test/inference.test.js out/test/packaging.test.js out/test/retrieval.test.js",
     "test:latency": "npm run compile && node --test out/test/inference.test.js"
   },
   "dependencies": {

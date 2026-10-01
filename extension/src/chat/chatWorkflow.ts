@@ -19,7 +19,7 @@ export interface ChatGateway {
     interaction_id: string;
     resolved: boolean;
     mastery_delta?: number;
-  }): Promise<void>;
+  }): PromiseLike<void>;
 }
 
 export interface ChatTokenStore {
@@ -34,6 +34,7 @@ export interface ChatWorkflowOptions {
   getDktState(): SerializedDktState | undefined;
   saveDktState(state: SerializedDktState): Promise<void>;
   telemetryEnabled?: boolean;
+  onFirstSocraticQuestion?(): void;
 }
 
 export interface ChatTurnResult {
@@ -65,6 +66,7 @@ export class ChatWorkflow {
   private interactionActive = false;
   private hintDepth = 0;
   private activeInteractionId: string | undefined;
+  private recordedFirstQuestion = false;
 
   constructor(private readonly options: ChatWorkflowOptions) {
     this.masteryByKc = Object.fromEntries(
@@ -128,6 +130,10 @@ export class ChatWorkflow {
       payload.kc_ids = [...new Set(retrieved.map((result) => result.document.kcId))];
     }
     const result = await this.options.gateway.chat(tokens.access_token, payload);
+    if (!this.recordedFirstQuestion) {
+      this.recordedFirstQuestion = true;
+      this.options.onFirstSocraticQuestion?.();
+    }
     this.activeInteractionId = result.interactionId;
     this.activeErrorText = errorText;
     this.interactionActive = true;

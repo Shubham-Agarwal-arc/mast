@@ -20,6 +20,9 @@ import type { SerializedDktState } from "./inference/types.js";
 import { LocalRetrieval } from "./retrieval/localRetrieval.js";
 
 const dktStateKey = "mast.dktHiddenState.v1";
+const walkthroughOpenedKey = "mast.walkthroughOpened.v1";
+const firstSocraticQuestionKey = "mast.firstSocraticQuestion.v1";
+const firstSocraticQuestionContext = "mast.firstSocraticQuestionComplete";
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const configuredDirectory = vscode.workspace.getConfiguration("mast").get<string>("modelDirectory", "");
@@ -93,8 +96,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       },
     },
     getDktState: () => context.globalState.get<SerializedDktState>(dktStateKey),
-    saveDktState: (state) => context.globalState.update(dktStateKey, state),
+    saveDktState: async (state) => { await context.globalState.update(dktStateKey, state); },
     telemetryEnabled: vscode.workspace.getConfiguration("mast").get<boolean>("telemetryEnabled", false),
+    onFirstSocraticQuestion: () => {
+      void vscode.commands.executeCommand("mast.internal.firstQuestionComplete");
+    },
   });
 
   context.subscriptions.push(
@@ -263,7 +269,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await vscode.window.showErrorMessage(message);
       }
     }),
+    vscode.commands.registerCommand("mast.internal.firstQuestionComplete", async () => {
+      await context.globalState.update(firstSocraticQuestionKey, true);
+      await vscode.commands.executeCommand("setContext", firstSocraticQuestionContext, true);
+    }),
   );
+
+  if (context.globalState.get<boolean>(firstSocraticQuestionKey, false)) {
+    await vscode.commands.executeCommand("setContext", firstSocraticQuestionContext, true);
+  }
+  if (!context.globalState.get<boolean>(walkthroughOpenedKey, false)) {
+    await vscode.commands.executeCommand("workbench.action.openWalkthrough", "mast.mast#firstRun");
+    await context.globalState.update(walkthroughOpenedKey, true);
+  }
 }
 
 export function deactivate(): void {}

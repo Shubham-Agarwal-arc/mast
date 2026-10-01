@@ -1,0 +1,176 @@
+{
+  "provenance": "SYNTHETIC_BOOTSTRAP_NOT_RESEARCH_MODEL",
+  "random_seed": 20260926,
+  "classifier_classes": [
+    "data_leakage",
+    "data_pipeline",
+    "dtype_device",
+    "gradient_autograd",
+    "nan_loss",
+    "overfitting",
+    "shape_mismatch",
+    "underfitting"
+  ],
+  "n_kcs": 30,
+  "dkt_hidden_size": 256,
+  "dkt_embedding_size": 64,
+  "dkt_num_layers": 2,
+  "p_slip": 0.02,
+  "p_guess": 0.05,
+  "steps_per_student": 200,
+  "training_epochs": 10,
+  "student_count": 8,
+  "kc_mapping": [
+    {
+      "kc_id": "KC_00",
+      "cluster_id": "cluster_0",
+      "prerequisite": null
+    },
+    {
+      "kc_id": "KC_01",
+      "cluster_id": "cluster_0",
+      "prerequisite": "KC_00"
+    },
+    {
+      "kc_id": "KC_02",
+      "cluster_id": "cluster_0",
+      "prerequisite": "KC_01"
+    },
+    {
+      "kc_id": "KC_03",
+      "cluster_id": "cluster_0",
+      "prerequisite": "KC_02"
+    },
+    {
+      "kc_id": "KC_04",
+      "cluster_id": "cluster_0",
+      "prerequisite": "KC_03"
+    },
+    {
+      "kc_id": "KC_05",
+      "cluster_id": "cluster_1",
+      "prerequisite": "KC_04"
+    },
+    {
+      "kc_id": "KC_06",
+      "cluster_id": "cluster_1",
+      "prerequisite": "KC_05"
+    },
+    {
+      "kc_id": "KC_07",
+      "cluster_id": "cluster_1",
+      "prerequisite": "KC_06"
+    },
+    {
+      "kc_id": "KC_08",
+      "cluster_id": "cluster_1",
+      "prerequisite": "KC_07"
+    },
+    {
+      "kc_id": "KC_09",
+      "cluster_id": "cluster_1",
+      "prerequisite": "KC_08"
+    },
+    {
+      "kc_id": "KC_10",
+      "cluster_id": "cluster_2",
+      "prerequisite": "KC_09"
+    },
+    {
+      "kc_id": "KC_11",
+      "cluster_id": "cluster_2",
+      "prerequisite": "KC_10"
+    },
+    {
+      "kc_id": "KC_12",
+      "cluster_id": "cluster_2",
+      "prerequisite": "KC_11"
+    },
+    {
+      "kc_id": "KC_13",
+      "cluster_id": "cluster_2",
+      "prerequisite": "KC_12"
+    },
+    {
+      "kc_id": "KC_14",
+      "cluster_id": "cluster_2",
+      "prerequisite": "KC_13"
+    },
+    {
+      "kc_id": "KC_15",
+      "cluster_id": "cluster_3",
+      "prerequisite": "KC_14"
+    },
+    {
+      "kc_id": "KC_16",
+      "cluster_id": "cluster_3",
+      "prerequisite": "KC_15"
+    },
+    {
+      "kc_id": "KC_17",
+      "cluster_id": "cluster_3",
+      "prerequisite": "KC_16"
+    },
+    {
+      "kc_id": "KC_18",
+      "cluster_id": "cluster_3",
+      "prerequisite": "KC_17"
+    },
+    {
+      "kc_id": "KC_19",
+      "cluster_id": "cluster_3",
+      "prerequisite": "KC_18"
+    },
+    {
+      "kc_id": "KC_20",
+      "cluster_id": "cluster_4",
+      "prerequisite": "KC_19"
+    },
+    {
+      "kc_id": "KC_21",
+      "cluster_id": "cluster_4",
+      "prerequisite": "KC_20"
+    },
+    {
+      "kc_id": "KC_22",
+      "cluster_id": "cluster_4",
+      "prerequisite": "KC_21"
+    },
+    {
+      "kc_id": "KC_23",
+      "cluster_id": "cluster_4",
+      "prerequisite": "KC_22"
+    },
+    {
+      "kc_id": "KC_24",
+      "cluster_id": "cluster_4",
+      "prerequisite": "KC_23"
+    },
+    {
+      "kc_id": "KC_25",
+      "cluster_id": "cluster_5",
+      "prerequisite": "KC_24"
+    },
+    {
+      "kc_id": "KC_26",
+      "cluster_id": "cluster_5",
+      "prerequisite": "KC_25"
+    },
+    {
+      "kc_id": "KC_27",
+      "cluster_id": "cluster_5",
+      "prerequisite": "KC_26"
+    },
+    {
+      "kc_id": "KC_28",
+      "cluster_id": "cluster_5",
+      "prerequisite": "KC_27"
+    },
+    {
+      "kc_id": "KC_29",
+      "cluster_id": "cluster_5",
+      "prerequisite": "KC_28"
+    }
+  ],
+  "holdout_evaluation": "NOT_RUN: no original holdout data was present in the repository"
+}
