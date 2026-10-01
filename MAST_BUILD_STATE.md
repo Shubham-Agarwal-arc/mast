@@ -32,71 +32,9 @@ artifacts/provenance, `.gitignore`, requirements, and the relevant Gateway
 health/auth/chat/metrics contracts and tests, then paste:
 
 ```
-I'm building MAST. This is Block 14 of 16 — Packaging & Marketplace Listing — per
-the attached MAST_BUILD_ROADMAP.md.
-My repo is
-https://github.com/Shubham-Agarwal-arc/mast.
-
-Do exactly this, nothing from Block 15 onward. Generate every file as a
-real file in the workspace — do not run any git command yourself (no
-`git init`, `add`, `commit`, `push`, `clone`, or `pull`). I'll run whatever
-git commands you give me on my own machine.
-
-1. Read MAST_BUILD_STATE.md in full first, then MAST_BUILD_ROADMAP.md,
-   `docs/PRD.md`, the extension manifest/source/tests, model and corpus
-   metadata, Gateway/auth contracts, `.gitignore`, and Block 13's metrics,
-   migrations, and tests. Sanity-check them against the state file.
-   Preserve pending Node.js npm checks, manual Extension Host/sign-in,
-   live provider/Stripe smoke checks, PostgreSQL migration gate, synthetic
-   model/corpus limits, production LVM-input gap, and missing KC
-   threshold/taxonomy caveats.
-2. Implement only Block 14 from the roadmap:
-   - Prepare `vsce` and `ovsx` packaging, version/semver conventions,
-     extension icon, extension README, CHANGELOG, and Marketplace/Open VSX
-     listing metadata.
-   - Add the first-run VS Code Walkthrough matching PRD §6.4, completing
-     in no more than five steps and ending at the first working Socratic
-     question; the default Managed Cloud flow must not prompt for an API
-     key.
-   - Package required local runtime/model assets only when their current
-     provenance and licensing permit it. Do not claim the synthetic
-     classifier/DKT artifacts are research weights or invent the absent
-     production corpus, taxonomy, or mastery thresholds.
-   - Do not publish to either registry unless credentials and explicit
-     authorization are already available; never ask for or handle a
-     publishing token in chat. Prepare and validate packages locally.
-3. Add focused tests or packaging checks for manifest contribution,
-   walkthrough step count/targets, package contents, and exclusion of
-   secrets/dev-only files. Do not call live providers, Stripe, Marketplace,
-   or external telemetry services.
-4. Validate Block 14's Definition of Done from MAST_BUILD_ROADMAP.md:
-   - Build a `.vsix` and verify its contents.
-   - Install and smoke-check on at least two of Windows/macOS/Linux if
-     available; otherwise record the exact platforms not exercised.
-   - Confirm the first-run flow completes in five steps or fewer with no
-     API-key prompt in Managed Cloud mode.
-   - Run extension checks only if Node.js/npm are available; otherwise
-     use editor diagnostics and clearly leave execution pending.
-   - Keep real Extension Host/sign-in, provider/Stripe, cross-platform,
-     PostgreSQL, and production-data caveats explicit.
-5. Update MAST_BUILD_STATE.md as one of the generated files: record Block
-   14 results/deviations and preserve all still-pending checks/caveats;
-   then write Block 15's full session-ready prompt in the "Copy This Into
-   a New Session" section.
-6. Give me every generated/changed file, then the exact Git Bash commands
-   to add, commit, and push with a clear conventional commit message. Do
-   not run any git command yourself.
-7. Report what shipped, validation results, the exact Block 15 prompt, and
-   every remaining blocker.
-
-Out of scope for Block 14: QA/regression gate execution, launch/go-live,
-instructor console, model retraining, taxonomy/threshold invention, and
-anything from Block 15 onward.
-
-Stay strictly inside Block 14. If Node.js/npm, registry credentials, or a
-real Extension Host are unavailable, use local packaging/editor checks
-where possible, state which validations could not run, and keep manual
-checks explicitly pending.
+git add MAST_BUILD_STATE.md extension/package.json extension/src/auth/gatewayClient.ts extension/src/chat/chatWorkflow.ts extension/src/extension.ts extension/test/chat.test.ts gateway/app/chat.py gateway/app/logging_config.py gateway/app/main.py gateway/app/metrics.py gateway/app/quota.py gateway/db/models.py gateway/db/migrations/versions/0003_interaction_observability.py tests/test_billing.py tests/test_chat.py tests/test_database.py tests/test_metrics.py
+git commit -m "feat(observability): add safe interaction metrics (Block 13)"
+git push origin HEAD
 ```
 
 ## ✅ What's Done
